@@ -8,11 +8,16 @@
 
 int main(int argc, char *argv[])
 {
+	// Control argv strlen
+	printf("-----Control argv: %d\n", strlen(argv[2]));
+
 	// Variables
-	int lineNumber = 0;
-	int columnNumber = 0;
-						// Read Text
-	char byteCurrent;
+	int lineNumber = 0,
+		columnNumber = 0,
+		countLetter = 0,
+		totalWord = 0;
+
+	char currentChar;
 	ssize_t bytesRead;
 
 
@@ -41,18 +46,42 @@ int main(int argc, char *argv[])
 		// Searching text length
 		int searchingTextLength = strlen(argv[2]);
 
-		// Control ++++++++++++
-		//bytesRead = read(openFile, &byteCurrent, BUFFER_SIZE);
-		//printf("BytesRead: %zd\n\n", bytesRead);
+		int countArgv = 0;
 
-		while (read(openFile, &byteCurrent, BUFFER_SIZE) > 0)
+		while (read(openFile, &currentChar, BUFFER_SIZE) > 0)
 		{
-			if (byteCurrent != '\0') columnNumber++;
-			if (byteCurrent == '\n') lineNumber++;
-			printf("%c", byteCurrent);
-			
+			// Control word
+			if (currentChar == argv[2][countArgv])
+			{
+				++countLetter;
+				++countArgv;
+
+				if (countLetter == strlen(argv[2]))
+				{
+					// write();
+
+					++totalWord;
+
+					countLetter = 0;
+					// i = -1; // I think!
+				}
+			}
+			else
+			{
+				countLetter = 0;
+				countArgv = 0;
+			}
+
+
+
+			if (currentChar != '\0') ++columnNumber;
+			if (currentChar == '\n') ++lineNumber;
+			printf("%c", currentChar);
 
 		}
+
+		// Control totalWord
+		printf("\n-----Control totalWord : %d\n", totalWord);
 	}
 
 
