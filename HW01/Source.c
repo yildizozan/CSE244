@@ -8,9 +8,6 @@
 
 int main(int argc, char *argv[])
 {
-	// Control argv strlen
-	printf("-----Control argv: %d\n", strlen(argv[2]));
-
 	// Variables
 	int lineNumber = 0,
 		columnNumber = 0,
@@ -34,9 +31,9 @@ int main(int argc, char *argv[])
 	}
 
 	// Opening file (READ ONLY MODE)
-	int openFile = open(argv[1], O_RDONLY);
+	int openFileForReading = open(argv[1], O_RDONLY);
 
-	if (openFile == -1)
+	if (openFileForReading == -1)
 	{
 		printf("Error for opening file.\nExiting..\n");
 		return 1;
@@ -48,8 +45,11 @@ int main(int argc, char *argv[])
 
 		int countArgv = 0;
 
-		while (read(openFile, &currentChar, BUFFER_SIZE) > 0)
+		while (read(openFileForReading, &currentChar, BUFFER_SIZE) > 0)
 		{
+			if (currentChar != '\0') ++columnNumber;
+			if (currentChar == '\n') ++lineNumber;
+
 			// Control word
 			if (currentChar == argv[2][countArgv])
 			{
@@ -58,9 +58,13 @@ int main(int argc, char *argv[])
 
 				if (countLetter == strlen(argv[2]))
 				{
-					// write();
-
 					++totalWord;
+
+					// Write a file
+					FILE *openFileForWriting = fopen("gfF.log", "a+");
+					fprintf(openFileForWriting, "%s metni dosya içinde %d satir ve %d sutunda bulundu.", argv[2], lineNumber, columnNumber - sizeof(argv[2]));
+					fclose(openFileForWriting);
+
 
 					countLetter = 0;
 					// i = -1; // I think!
@@ -74,11 +78,13 @@ int main(int argc, char *argv[])
 
 
 
-			if (currentChar != '\0') ++columnNumber;
-			if (currentChar == '\n') ++lineNumber;
+
 			printf("%c", currentChar);
 
 		}
+
+		// Close reading file
+		close(openFileForReading);
 
 		// Control totalWord
 		printf("\n-----Control totalWord : %d\n", totalWord);
@@ -93,4 +99,4 @@ int main(int argc, char *argv[])
 }
 
 // Control 
-// printf("\n-----Control : %d\n", openFile);
+// printf("\n-----Control : %d\n", openFileForReading);
