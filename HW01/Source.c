@@ -9,10 +9,10 @@
 int main(int argc, char *argv[])
 {
 	// Variables
-	int lineNumber = 0,
-		columnNumber = 0,
-		countLetter = 0,
-		totalWord = 0;
+	int lineNumber = 1,
+	columnNumber = 1,
+	countLetter = 0,
+	totalWord = 0;
 
 	char currentChar;
 	ssize_t bytesRead;
@@ -48,31 +48,34 @@ int main(int argc, char *argv[])
 		while (read(openFileForReading, &currentChar, BUFFER_SIZE) > 0)
 		{
 			if (currentChar != '\0') ++columnNumber;
-			if (currentChar == '\n') ++lineNumber;
+			if (currentChar == '\n')
+			{
+				++lineNumber;
+				columnNumber = 1;
+			}
 
 			// Control word
 			if (currentChar == argv[2][countArgv])
 			{
 				++countLetter;
 				++countArgv;
-
+				
 				if (countLetter == strlen(argv[2]))
 				{
 					++totalWord;
 
 					// Write a file
 					FILE *openFileForWriting = fopen("gfF.log", "a+");
-					fprintf(openFileForWriting, "%s metni dosya içinde %d satir ve %d sutunda bulundu.", argv[2], lineNumber, columnNumber - sizeof(argv[2]));
+					fprintf(openFileForWriting, "%s metni dosya iÃ§inde %d satir ve %d sutunda bulundu.\n", argv[2], lineNumber, columnNumber - strlen(argv[2]) );
 					fclose(openFileForWriting);
-
-
+		
+					// Must be zero 
 					countLetter = 0;
-					// i = -1; // I think!
 				}
 			}
 			else
 			{
-				countLetter = 0;
+				countLetter = 0 ;
 				countArgv = 0;
 			}
 
@@ -85,7 +88,7 @@ int main(int argc, char *argv[])
 
 		// Close reading file
 		close(openFileForReading);
-
+			
 		// Control totalWord
 		printf("\n-----Control totalWord : %d\n", totalWord);
 	}
