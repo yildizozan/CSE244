@@ -9,16 +9,16 @@
 int main(int argc, char *argv[])
 {
 	// Variables
-	int lineNumber = 1,
-	columnNumber = 1,
-	countLetter = 0,
-	totalWord = 0;
+	int currentLineNumber = 1,	// currentLineNumber is line counter
+	curentColumnNumber = 1,		// curentColumnNumber is column counter
+	countLetter = 0,			// countLetter need to while loop
+	totalWord = 0;				// totalWord find searching text in the file
 
 	char currentChar;
 	ssize_t bytesRead;
 
 
-	// Usage
+	// Usage:
 	if (argc == 1)
 	{
 		printf("Usage: ./file [directory or file] [searching text]\n");
@@ -47,11 +47,11 @@ int main(int argc, char *argv[])
 
 		while (read(openFileForReading, &currentChar, BUFFER_SIZE) > 0)
 		{
-			if (currentChar != '\0') ++columnNumber;
+			if (currentChar != '\0') ++curentColumnNumber;
 			if (currentChar == '\n')
 			{
-				++lineNumber;
-				columnNumber = 1;
+				++currentLineNumber;
+				curentColumnNumber = 1;
 			}
 
 			// Control word
@@ -66,7 +66,7 @@ int main(int argc, char *argv[])
 
 					// Write a file
 					FILE *openFileForWriting = fopen("gfF.log", "a+");
-					fprintf(openFileForWriting, "%s metni dosya içinde %d satir ve %d sutunda bulundu.\n", argv[2], lineNumber, columnNumber - strlen(argv[2]) );
+					fprintf(openFileForWriting, "%s dosyasında => %s metni dosya içinde %d satir ve %d sutunda bulundu.\n", argv[1], argv[2], currentLineNumber, curentColumnNumber - strlen(argv[2]) );
 					fclose(openFileForWriting);
 		
 					// Must be zero 
@@ -79,27 +79,18 @@ int main(int argc, char *argv[])
 				countArgv = 0;
 			}
 
-
-
-
-			printf("%c", currentChar);
-
 		}
 
 		// Close reading file
 		close(openFileForReading);
+
+		// Ayıraç
+		FILE *openFileForWriting = fopen("gfF.log", "a+");
+		fprintf(openFileForWriting, "----------------------------------------------------------------");
+		fclose(openFileForWriting);
 			
 		// Control totalWord
 		printf("\n-----Control totalWord : %d\n", totalWord);
 	}
-
-
-	// Control line & column number
-	printf("\nLine number: \t%d", lineNumber);
-	printf("\nColumn number: \t%d", columnNumber);
-	printf("\n");
 	return 0;
 }
-
-// Control 
-// printf("\n-----Control : %d\n", openFileForReading);
