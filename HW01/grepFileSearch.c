@@ -90,7 +90,7 @@ int main(int argc, char *argv[])
 		fclose(openFileForWriting);
 			
 		// Control totalWord
-		printf("\n-----Control totalWord : %d\n", totalWord);
+		printf("Aradığınız kelime %d kez bulunmuştur.\n", totalWord);
 	}
 	return 0;
 }
