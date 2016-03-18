@@ -4,6 +4,8 @@
 #include <unistd.h>
 #include <sys/wait.h>
 
+int searching(char *directory);
+
 int main(int argc, char *argv[])
 {
 	// Using:
@@ -13,21 +15,27 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	searching(argv[1]);
+		
+	return 0;
+}
+
+int searching (char *directory)
+{
 	// Folder variables
 	DIR *dir;
 	struct dirent *ent;
 	
 	// Try to open folder
-	if ((dir = opendir(argv[1])) == NULL) // Argüman olarak değişecek
+	if ((dir = opendir(directory)) == NULL) // Argüman olarak değişecek
 	{
 		perror("opendir");
 		return 1;
 	}
 	else // Dosya başarıyla açılırsa buradan devam edecek.
 	{
-		// Sırayla dosyları okuyacak.
-		while ((ent = readdir(dir)) != NULL)
-		{
+		// Eğer directory açılırsa işlemleri yapacak.
+		do {
 			pid_t childPid = fork();
 
 			if (childPid < 0) // Child process oluşmaz ise çıkış yapacak o process
@@ -37,30 +45,17 @@ int main(int argc, char *argv[])
 			}
 			else if(childPid == 0) // Başarılı olan processler işleme girecek.
 			{
-				printf("%s -> \tpid: %d -> ", ent->d_name, getpid());
+				printf("%s -> \tpid: %d -> parent: %d\n", ent->d_name, getpid(), getppid());
 				exit(0);
 			}
 			else  // Main (parent) process after fork succeeds 
 			{    
-			    int returnStatus;    
-			    waitpid(childPid, &returnStatus, 0);  // Parent process waits here for child to terminate.
-
-			    if (returnStatus == 0)  // Verify child process terminated without error.  
-			    {
-			       printf("The child process terminated normally.\n"); 
-			    }
-
-			    if (returnStatus == 1)      
-			    {
-			       printf("The child process terminated with an error!.\n");   
-			    }
+			    wait(NULL);
 			} // end else
 			
-		} // end while readdir
+		} while (ent = readdir(dir));
 
 	} // end else
 
 	closedir(dir);
-		
-	return 0;
 }
