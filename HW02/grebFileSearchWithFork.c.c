@@ -46,6 +46,9 @@ int searching (char *directory)
 			}
 			else if(childPid == 0) // Başarılı olan processler işleme girecek.
 			{
+				if(strcmp(dent->d_name, ".") == 0 || strcmp(dent->d_name, "..") == 0)
+					exit(0);
+
 				printf("%s -> \tpid: %d -> parent: %d\n", ent->d_name, getpid(), getppid());
 				exit(0);
 			}
