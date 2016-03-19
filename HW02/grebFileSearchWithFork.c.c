@@ -4,16 +4,16 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <string.h>
-#include <errno.h>
+#include <sys/stat.h>
 
-int searching(char *directory);
+int searching(char *currentPath);
 
 int main(int argc, char *argv[])
 {
 	// Using:
 	if (argc != 3)
 	{
-		printf("Using: ./grD [Directory Name] text\n");
+		printf("Using: ./grD [currentPath Name] text\n");
 		return 1;
 	}
 
@@ -22,46 +22,51 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-int searching (char *directory)
+int searching (char *currentPath)
 {
 	// Folder variables
 	DIR *dir;
 	struct dirent *ent;
 	
 	// Try to open folder
-	if ((dir = opendir(directory)) == NULL) // Argüman olarak değişecek
+	if ((dir = opendir(currentPath)) == NULL) // Argüman olarak değişecek
 	{
 		perror("opendir");
 		return 1;
 	}
 	else // Dosya başarıyla açılırsa buradan devam edecek.
 	{
-		// Eğer directory açılırsa işlemleri yapacak.
-		while (errno = 0, (ent = readdir(dir)) != NULL)
+		// Eğer currentPath açılırsa işlemleri yapacak.
+		while ((ent = readdir(dir)) != NULL)
 		{
 			pid_t childPid = fork();
 
-			// Önce hata kontrolü sağlıyoruz.
-			if (errno)
-			{
-				perror("readdir");
-				exit(EXIT_FAILURE);
-			}
-
-			if (childPid < 0) // Child process oluşmaz ise çıkış yapacak o process
+			// Child process oluşmaz ise çıkış yapacak o process
+			if (childPid < 0)
 			{
 				perror("no child\n");
 				exit(EXIT_FAILURE);
 			}
 			else if(childPid == 0) // Başarılı olan processler işleme girecek.
 			{
+				// Geçerli dizin tekrardan ve üst dizini değerlendirmeye alınmayacak.
 				if(strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
 					exit(0);
 
-				
-
-				printf("%s -> \tpid: %d -> parent: %d\n", ent->d_name, getpid(), getppid());
-				exit(EXIT_FAILURE);
+				// Klasör olduğuna denk gelirsek recursive takılıyoruz.
+				if (S_ISDIR(currentPath) == 0)
+				{
+					char *newPath;
+					newPath = currentPath;
+					strcat(newPath, "/");
+					strcat(newPath, ent->d_name);
+					searching (newPath);
+				}
+				else
+				{
+					printf("%s -> \tpid: %d -> parent: %d\n", ent->d_name, getpid(), getppid());
+					exit(EXIT_FAILURE);
+				}
 			}
 			else  // Parent process after fork succeeds 
 			{    
@@ -74,3 +79,5 @@ int searching (char *directory)
 
 	closedir(dir);
 }
+// NOTLAR
+// ent değişkeni değişecek
