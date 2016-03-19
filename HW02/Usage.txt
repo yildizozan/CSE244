@@ -1,0 +1,3 @@
+	readingFile() fonksiyonu başarısızlık durumunda sıfır dönecek, başarılı olursa 1 döner.
+
+	

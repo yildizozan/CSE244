@@ -6,7 +6,10 @@
 #include <string.h>
 #include <sys/stat.h>
 
+#define BUFFER_SIZE 1;
+
 void searching(char *currentPath);
+int readingFile(char *filePath);
 
 int main(int argc, char *argv[])
 {
@@ -67,7 +70,10 @@ void searching (char *currentPath)
 				}
 				else if(ent->d_type == DT_REG) // Control for file
 				{
-					printf("%s -> \tpid: %d -> parent: %d\n", ent->d_name, getpid(), getppid());
+					char cwd[1024];
+					if (getcwd(cwd, sizeof(cwd)) != NULL)
+						printf("CWD: %s\%s\n", cwd,ent->d_name);
+						//printf("%s -> \tpid: %d -> parent: %d\n", ent->d_name, getpid(), getppid());
 					return;
 				}
 			}
@@ -83,5 +89,53 @@ void searching (char *currentPath)
 
 }
 
+int readingFile(char *filePath)
+{
+	// Okunacak olan dosya açılır.
+	int openFileForReadOnly = open(filePath, O_RDONLY);
+
+	// Dosyanın açılıp açılmadığı kontrol edilir.
+	if (openFileForReadOnly == 0)
+	{
+		printf("File not read!\n");
+		return 0;
+	} // end if openFileForReadOnly
+	else
+	{
+		int searchingTextLength = strlen(argv[2]);	// Search text lenght
+
+		char currentLetter;							// While read, for a char
+
+		int currentLineNumber = 1,		// currentLineNumber is line counter
+			curentColumnNumber = 1,		// curentColumnNumber is column counter
+			countLetter = 0,			// countLetter need to while loop
+			totalWord = 0;				// totalWord find searching text in the file
+
+		// Starting to read
+		while(read(openFileForReadOnly, &currentLetter, BUFFER_SIZE) > 0)
+		{
+			if (currentLetter == "\0")
+				++curentColumnNumber;
+
+			if (currentLetter == "\n")
+			{
+				++currentLineNumber;
+				curentColumnNumber = 1;
+			}
+
+			if (currentLetter == openFileForReadOnly == filePath)
+			{
+				int a;
+			}
+
+
+
+		} // end while
+
+	} // end else openFileForReadOnly
+}
+
 // NOTLAR
 // ent değişkeni değişecek
+
+//readingFile()
