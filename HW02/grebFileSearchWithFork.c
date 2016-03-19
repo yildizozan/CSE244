@@ -2,6 +2,9 @@
 #include <stdlib.h>
 #include <dirent.h>
 #include <unistd.h>
+#include <sys/wait.h>
+
+int searching(char *directory);
 
 int main(int argc, char *argv[])
 {
@@ -12,45 +15,47 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	searching(argv[1]);
+		
+	return 0;
+}
+
+int searching (char *directory)
+{
 	// Folder variables
 	DIR *dir;
 	struct dirent *ent;
 	
 	// Try to open folder
-	if ((dir = opendir(argv[1])) == NULL) // Argüman olarak değişecek
+	if ((dir = opendir(directory)) == NULL) // Argüman olarak değişecek
 	{
 		perror("opendir");
 		return 1;
 	}
 	else // Dosya başarıyla açılırsa buradan devam edecek.
 	{
-		// Sırayla dosyları okuyacak.
-		while ((ent = readdir(dir)) != NULL)
-		{
+		// Eğer directory açılırsa işlemleri yapacak.
+		do {
 			pid_t childPid = fork();
 
 			if (childPid < 0) // Child process oluşmaz ise çıkış yapacak o process
 			{
 				perror("no child\n");
-				exit (EXIT_FAILURE);
+				exit(1);
 			}
 			else if(childPid == 0) // Başarılı olan processler işleme girecek.
 			{
-				printf("alt process\n");
-				//printf("%s\n", ent->d_name);
-				return 1;
+				printf("%s -> \tpid: %d -> parent: %d\n", ent->d_name, getpid(), getppid());
+				exit(0);
 			}
-			else
-			{
-				int returnStatus;
-				wait(NULL);
-			}
+			else  // Main (parent) process after fork succeeds 
+			{    
+			    wait(NULL);
+			} // end else
 			
-		} // end while readdir
+		} while (ent = readdir(dir));
 
 	} // end else
 
 	closedir(dir);
-		
-	return 0;
 }
