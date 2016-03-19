@@ -3,6 +3,8 @@
 #include <dirent.h>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <string.h>
+#include <errno.h>
 
 int searching(char *directory);
 
@@ -35,22 +37,31 @@ int searching (char *directory)
 	else // Dosya başarıyla açılırsa buradan devam edecek.
 	{
 		// Eğer directory açılırsa işlemleri yapacak.
-		while ((ent = readdir(dir)) != NULL)
+		while (errno = 0, (ent = readdir(dir)) != NULL)
 		{
 			pid_t childPid = fork();
+
+			// Önce hata kontrolü sağlıyoruz.
+			if (errno)
+			{
+				perror("readdir");
+				exit(EXIT_FAILURE);
+			}
 
 			if (childPid < 0) // Child process oluşmaz ise çıkış yapacak o process
 			{
 				perror("no child\n");
-				exit(1);
+				exit(EXIT_FAILURE);
 			}
 			else if(childPid == 0) // Başarılı olan processler işleme girecek.
 			{
-				if(strcmp(dent->d_name, ".") == 0 || strcmp(dent->d_name, "..") == 0)
+				if(strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
 					exit(0);
 
+				
+
 				printf("%s -> \tpid: %d -> parent: %d\n", ent->d_name, getpid(), getppid());
-				exit(0);
+				exit(EXIT_FAILURE);
 			}
 			else  // Parent process after fork succeeds 
 			{    
