@@ -41,6 +41,7 @@ void searching (char *currentPath)
 		{
 			pid_t childPid = fork();
 
+
 			// Child process oluşmaz ise çıkış yapacak o process
 			if (childPid < 0)
 			{
