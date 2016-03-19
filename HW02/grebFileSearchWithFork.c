@@ -9,7 +9,7 @@
 
 #define BUFFER_SIZE 1
 
-void searching(char *currentPath);
+void searching (char *currentPath, char *searchText);
 int readingFile(char *filePath, char *searchText);
 
 int main(int argc, char *argv[])
@@ -21,12 +21,12 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	searching(argv[1]);
+	searching(argv[1], argv[2]);
 		
 	return 0;
 }
 
-void searching (char *currentPath)
+void searching (char *currentPath, char *searchText)
 {
 	// Folder variables
 	DIR *dir;
@@ -66,12 +66,15 @@ void searching (char *currentPath)
 					strcat(newPath, ent->d_name);
 
 					// Searching new path
-					searching(newPath);
+					searching(newPath, searchText);
 					return;
 				}
 				else if(ent->d_type == DT_REG) // Control for file
 				{
-					printf("%s/%s dosyasında ->\n", currentPath, ent->d_name);
+					strcat(currentPath, "/");
+					strcat(currentPath, ent->d_name);
+					readingFile(currentPath, searchText);
+					//printf("%s dosyasında ->\n", currentPath);
 					//printf("%s -> \tpid: %d -> parent: %d\n", ent->d_name, getpid(), getppid());
 					return;
 				}
@@ -101,15 +104,13 @@ int readingFile(char *filePath, char *searchText)
 	} // end if openFileForReadOnly
 	else
 	{
-		int searchingTextLength = strlen(searchText);	// Search text lenght
-
 		char currentLetter;							// While read, for a char
 
 		int currentLineNumber = 1,		// currentLineNumber is line counter
 			curentColumnNumber = 1,		// curentColumnNumber is column counter
 			countLetter = 0,			// countLetter need to while loop
-			totalWord = 0;				// totalWord find searching text in the file
-
+			totalWord = 0,				// totalWord find searching text in the file
+			countSearchingFileLetter = 0;
 		// Starting to read
 		while(read(openFileForReadOnly, &currentLetter, BUFFER_SIZE) > 0)
 		{
@@ -120,9 +121,30 @@ int readingFile(char *filePath, char *searchText)
 			{
 				++currentLineNumber;
 				curentColumnNumber = 1;
-			}
+			} // end if currentLetter == '\n'
 
-			// BURADAN DEVAM
+			if (currentLetter == searchText[countSearchingFileLetter])
+			{
+				++countLetter;
+				++countSearchingFileLetter;
+
+				if (countLetter == strlen(searchText))
+				{
+					++totalWord;
+
+					// Write a file
+					FILE *openFileForWriting = fopen("gdf.log", "a+");
+					fprintf(openFileForWriting, "%s dosyasında => %s metni dosya içinde %d satir ve %d sutunda bulundu.\n", filePath, searchText, currentLineNumber, curentColumnNumber - strlen(searchText));
+					fclose(openFileForWriting);
+
+					printf("%s dosyasında => %s metni dosya içinde %d satir ve %d sutunda bulundu.\n", filePath, searchText, currentLineNumber, curentColumnNumber - strlen(searchText));
+
+					// CountLetter reset for next word
+					countLetter = 0;
+
+				} // end if (countLetter == strlen(searchText))
+
+			} // end if (currentLetter == searchText[countSearchingFileLetter])
 
 
 		} // end while
