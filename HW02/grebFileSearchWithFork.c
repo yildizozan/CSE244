@@ -35,7 +35,8 @@ int searching (char *directory)
 	else // Dosya başarıyla açılırsa buradan devam edecek.
 	{
 		// Eğer directory açılırsa işlemleri yapacak.
-		do {
+		while ((ent = readdir(dir)) != NULL)
+		{
 			pid_t childPid = fork();
 
 			if (childPid < 0) // Child process oluşmaz ise çıkış yapacak o process
@@ -48,12 +49,12 @@ int searching (char *directory)
 				printf("%s -> \tpid: %d -> parent: %d\n", ent->d_name, getpid(), getppid());
 				exit(0);
 			}
-			else  // Main (parent) process after fork succeeds 
+			else  // Parent process after fork succeeds 
 			{    
 			    wait(NULL);
 			} // end else
 			
-		} while (ent = readdir(dir));
+		}
 
 	} // end else
 
