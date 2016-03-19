@@ -6,14 +6,14 @@
 #include <string.h>
 #include <sys/stat.h>
 
-int searching(char *currentPath);
+void searching(char *currentPath);
 
 int main(int argc, char *argv[])
 {
 	// Using:
 	if (argc != 3)
 	{
-		printf("Using: ./grD [currentPath Name] text\n");
+		printf("Using: ./grD [directory] text\n");
 		return 1;
 	}
 
@@ -22,17 +22,17 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-int searching (char *currentPath)
+void searching (char *currentPath)
 {
 	// Folder variables
 	DIR *dir;
 	struct dirent *ent;
 	
 	// Try to open folder
-	if ((dir = opendir(currentPath)) == NULL) // Argüman olarak değişecek
+	if ((dir = opendir(currentPath)) == NULL)
 	{
 		perror("opendir");
-		return 1;
+		exit(EXIT_FAILURE);
 	}
 	else // Dosya başarıyla açılırsa buradan devam edecek.
 	{
@@ -51,21 +51,24 @@ int searching (char *currentPath)
 			{
 				// Geçerli dizin tekrardan ve üst dizini değerlendirmeye alınmayacak.
 				if(strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
-					exit(0);
+					exit(EXIT_FAILURE);
 
-				// Klasör olduğuna denk gelirsek recursive takılıyoruz.
-				if (S_ISDIR(currentPath) == 0)
+				// Control for folder
+				if (ent->d_type == DT_DIR)
 				{
-					char *newPath;
-					newPath = currentPath;
+					// Create new path
+					char *newPath = currentPath;
 					strcat(newPath, "/");
 					strcat(newPath, ent->d_name);
-					searching (newPath);
+
+					// Searching new path
+					searching(newPath);
+					return;
 				}
-				else
+				else if(ent->d_type == DT_REG) // Control for file
 				{
 					printf("%s -> \tpid: %d -> parent: %d\n", ent->d_name, getpid(), getppid());
-					exit(EXIT_FAILURE);
+					return;
 				}
 			}
 			else  // Parent process after fork succeeds 
@@ -74,10 +77,11 @@ int searching (char *currentPath)
 			} // end else
 			
 		}
+		closedir(dir);
 
 	} // end else
 
-	closedir(dir);
 }
+
 // NOTLAR
 // ent değişkeni değişecek
