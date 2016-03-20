@@ -8,9 +8,10 @@
 #include <string.h>
 
 #define BUFFER_SIZE 1
+#define PATH_SIZE 255
 
-void searching (char *currentPath, char *searchText);
-int readingFile(char *filePath, char *searchText);
+void fileCheck (char *currentPath, char *searchText);
+int searching(char *filePath, char *searchingText);
 
 int main(int argc, char *argv[])
 {
@@ -21,39 +22,39 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
-	searching(argv[1], argv[2]);
-		
+	fileCheck(argv[1], argv[2]);
+
 	return 0;
 }
 
-void searching (char *currentPath, char *searchText)
+void fileCheck (char *currentPath, char *searchText)
 {
 	// Folder variables
 	DIR *dir;
 	struct dirent *ent;
-	
+
 	// Try to open folder
 	if ((dir = opendir(currentPath)) == NULL)
 	{
 		perror("opendir");
 		exit(EXIT_FAILURE);
 	}
-	else // Dosya başarıyla açılırsa buradan devam edecek.
+	else // Successfull open dir
 	{
-		// Eğer currentPath açılırsa işlemleri yapacak.
+		// Reading directioary
 		while ((ent = readdir(dir)) != NULL)
 		{
 			pid_t childPid = fork();
 
-			// Child process oluşmaz ise çıkış yapacak o process
+			// Child process can't be created
 			if (childPid < 0)
 			{
 				perror("no child\n");
 				exit(EXIT_FAILURE);
 			}
-			else if(childPid == 0) // Başarılı olan processler işleme girecek.
+			else if(childPid == 0) // Process is success
 			{
-				// Geçerli dizin tekrardan ve üst dizini değerlendirmeye alınmayacak.
+				// NO CWD and upper
 				if(strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
 					exit(EXIT_FAILURE);
 
@@ -61,29 +62,37 @@ void searching (char *currentPath, char *searchText)
 				if (ent->d_type == DT_DIR)
 				{
 					// Create new path
-					char *newPath = currentPath;
+					char newPath[255];
+					strcpy(newPath, currentPath);
 					strcat(newPath, "/");
 					strcat(newPath, ent->d_name);
 
-					// Searching new path
-					searching(newPath, searchText);
+					// Filecheck new path
+					fileCheck(newPath, searchText);
 					return;
 				}
-				else if(ent->d_type == DT_REG) // Control for file
+				// Control for file
+				else if(ent->d_type == DT_REG)
 				{
-					strcat(currentPath, "/");
-					strcat(currentPath, ent->d_name);
-					readingFile(currentPath, searchText);
+					// File path
+					char tempPath[255];
+					strcpy(tempPath, currentPath);
+					strcat(tempPath, "/");
+					strcat(tempPath, ent->d_name);
+
+					// Searching new path
+					searching(tempPath, searchText);
+
 					//printf("%s dosyasında ->\n", currentPath);
-					//printf("%s -> \tpid: %d -> parent: %d\n", ent->d_name, getpid(), getppid());
+					printf("%s -> \tpid: %d -> parent: %d\n", tempPath, getpid(), getppid());
 					return;
 				}
 			}
-			else  // Parent process after fork succeeds 
-			{    
+			else  // Parent process after fork succeeds
+			{
 			    wait(NULL);
 			} // end else
-			
+
 		}
 		closedir(dir);
 
@@ -91,66 +100,77 @@ void searching (char *currentPath, char *searchText)
 
 }
 
-int readingFile(char *filePath, char *searchText)
+int searching(char *filePath, char *searchingText)
 {
-	// Okunacak olan dosya açılır.
-	int openFileForReadOnly = open(filePath, O_RDONLY);
+	// Variables
+	int currentLineNumber = 1,	// currentLineNumber is line counter
+		curentColumnNumber = 1,		// curentColumnNumber is column counter
+		countLetter = 0,			// countLetter need to while loop
+		totalWord = 0;				// totalWord find searching text in the file
 
-	// Dosyanın açılıp açılmadığı kontrol edilir.
-	if (openFileForReadOnly == 0)
+	char currentChar;
+
+	// Opening file (READ ONLY MODE)
+	int openFileForReading = open(filePath, O_RDONLY);
+
+	if (openFileForReading == -1)
 	{
-		printf("File not read!\n");
-		return 0;
-	} // end if openFileForReadOnly
+		printf("Error for opening file.\nExiting..\n");
+		return 1;
+	}
 	else
 	{
-		char currentLetter;							// While read, for a char
+		int countArgv = 0;
 
-		int currentLineNumber = 1,		// currentLineNumber is line counter
-			curentColumnNumber = 1,		// curentColumnNumber is column counter
-			countLetter = 0,			// countLetter need to while loop
-			totalWord = 0,				// totalWord find searching text in the file
-			countSearchingFileLetter = 0;
-		// Starting to read
-		while(read(openFileForReadOnly, &currentLetter, BUFFER_SIZE) > 0)
+		while (read(openFileForReading, &currentChar, BUFFER_SIZE) > 0)
 		{
-			if (currentLetter == '\0')
-				++curentColumnNumber;
-
-			if (currentLetter == '\n')
+			if (currentChar != '\0') ++curentColumnNumber;
+			if (currentChar == '\n')
 			{
 				++currentLineNumber;
 				curentColumnNumber = 1;
-			} // end if currentLetter == '\n'
+			}
 
-			if (currentLetter == searchText[countSearchingFileLetter])
+			// Control word
+			if (currentChar == searchingText[countArgv])
 			{
 				++countLetter;
-				++countSearchingFileLetter;
+				++countArgv;
 
-				if (countLetter == strlen(searchText))
+				if (countLetter == strlen(searchingText))
 				{
 					++totalWord;
 
 					// Write a file
-					FILE *openFileForWriting = fopen("gdf.log", "a+");
-					fprintf(openFileForWriting, "%s dosyasında => %s metni dosya içinde %d satir ve %d sutunda bulundu.\n", filePath, searchText, currentLineNumber, curentColumnNumber - strlen(searchText));
+					FILE *openFileForWriting = fopen("gfF.log", "a+");
+					fprintf(openFileForWriting, "%s file => %s word, %d line and %d column found.\n", filePath, searchingText, currentLineNumber, curentColumnNumber - strlen(searchingText));
 					fclose(openFileForWriting);
 
-					printf("%s dosyasında => %s metni dosya içinde %d satir ve %d sutunda bulundu.\n", filePath, searchText, currentLineNumber, curentColumnNumber - strlen(searchText));
-
-					// CountLetter reset for next word
+					// Must be zero
 					countLetter = 0;
+				}
+			}
+			else
+			{
+				countLetter = 0;
+				countArgv = 0;
+			}
 
-				} // end if (countLetter == strlen(searchText))
+		}
 
-			} // end if (currentLetter == searchText[countSearchingFileLetter])
-
-
-		} // end while
-
-	} // end else openFileForReadOnly
+		// Close reading file
+		close(openFileForReading);
+/*
+		// Ayıraç
+		FILE *openFileForWriting = fopen("gfF.log", "a+");
+		fprintf(openFileForWriting, "----------------------------------------------------------------\n");
+		fclose(openFileForWriting);
+*/
+		// Control totalWord
+		printf("Aradığınız kelime %d kez bulunmuştur.\n", totalWord);
+	}
+	return 0;
 }
 
-// NOTLAR
-// ent değişkeni değişecek
+// NOTS
+// ent variable name change.
