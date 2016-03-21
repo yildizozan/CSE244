@@ -83,8 +83,8 @@ void fileCheck (char *currentPath, char *searchText)
 					// Searching new path
 					searching(tempPath, searchText);
 
-					//printf("%s dosyasında ->\n", currentPath);
-					printf("%s -> \tpid: %d -> parent: %d\n", tempPath, getpid(), getppid());
+					// File name print
+					printf("%s dosyası tarandı.\n", ent->d_name);
 					return;
 				}
 			}
@@ -142,7 +142,7 @@ int searching(char *filePath, char *searchingText)
 					++totalWord;
 
 					// Write a file
-					FILE *openFileForWriting = fopen("gfF.log", "a+");
+					FILE *openFileForWriting = fopen("gfD.log", "a+");
 					fprintf(openFileForWriting, "%s file => %s word, %d line and %d column found.\n", filePath, searchingText, currentLineNumber, curentColumnNumber - strlen(searchingText));
 					fclose(openFileForWriting);
 
@@ -160,14 +160,6 @@ int searching(char *filePath, char *searchingText)
 
 		// Close reading file
 		close(openFileForReading);
-/*
-		// Ayıraç
-		FILE *openFileForWriting = fopen("gfF.log", "a+");
-		fprintf(openFileForWriting, "----------------------------------------------------------------\n");
-		fclose(openFileForWriting);
-*/
-		// Control totalWord
-		printf("Aradığınız kelime %d kez bulunmuştur.\n", totalWord);
 	}
 	return 0;
 }
