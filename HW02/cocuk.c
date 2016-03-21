@@ -1,31 +1,32 @@
 #include <stdio.h>
-#include <unistd.h>
-#include <string.h>
 #include <stdlib.h>
 #include <dirent.h>
-#include <sys/types.h>
-#include <limits.h>
+#include <unistd.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
+#include <fcntl.h>
+#include <string.h>
 
 
+void findDirectoryAndFiles( char *searchDirchar, char *searchingString);
+void fileCheck (char *currentPath, char *searchText);
 
-void findDirectoryAndFiles(const char *searchDirchar,const char *searchingString);
-
-int main(int argc, char const *argv[])
+int main(int argc, char *argv[])
 {
 	if (argc != 3)
 	{
 		fprintf(stderr,"Usage: ./grepFromDir directoryName searchingString\n");
 		return 1;
 	}
-	findDirectoryAndFiles(argv[1],argv[2]);
+	fileCheck(argv[1],argv[2]);
 	
 	return 0;
 }
 
-void findDirectoryAndFiles(const char *searchDir,const char *searchingString)
+void findDirectoryAndFiles(char *searchDir, char *searchingString)
 {
 	DIR *mydir;
-	struct dirent *direntp;
+	struct dirent *ent;
 	
 	if ((mydir = opendir(searchDir)) == NULL)
 	{	
@@ -35,7 +36,7 @@ void findDirectoryAndFiles(const char *searchDir,const char *searchingString)
 	}
 	else //dosya acilmadi ise hata ver ve cik
 	{
-		while((direntp = readdir(mydir)) != NULL)
+		while((ent = readdir(mydir)) != NULL)
 		{		
 			pid_t childPid = fork();
 
@@ -47,7 +48,7 @@ void findDirectoryAndFiles(const char *searchDir,const char *searchingString)
 			}
 			else if(childPid == 0) // Başarılı olan processler işleme girecek.
 			{
-				printf("chil: %d -> parent: %d\n%s\n\n", getpid(), getppid(), direntp->d_name);
+				printf("chil: %d -> parent: %d\n%s\n\n", getpid(), getppid(), ent->d_name);
 			}
 			else  // Parent process after fork succeeds 
 			{    
@@ -55,7 +56,80 @@ void findDirectoryAndFiles(const char *searchDir,const char *searchingString)
 			} // end else
 			
 		}
+		closedir(mydir);
 	}
-	closedir(mydir);
+	
 }
 
+void fileCheck (char *currentPath, char *searchText)
+{
+	// Folder variables
+	DIR *dir;
+	struct dirent *ent;
+
+	// Try to open folder
+	if ((dir = opendir(currentPath)) == NULL)
+	{
+		perror("opendir");
+		exit(EXIT_FAILURE);
+	}
+	else // Successfull open dir
+	{
+		// Reading directioary
+		while ((ent = readdir(dir)) != NULL)
+		{
+			pid_t childPid = fork();
+
+			// Child process can't be created
+			if (childPid < 0)
+			{
+				perror("no child\n");
+				exit(EXIT_FAILURE);
+			}
+			else if(childPid == 0) // Process is success
+			{
+				// NO CWD and upper
+				if(strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+					exit(EXIT_FAILURE);
+
+				// Control for folder
+				if (ent->d_type == DT_DIR)
+				{
+					// Create new path
+					char newPath[255];
+					strcpy(newPath, currentPath);
+					strcat(newPath, "/");
+					strcat(newPath, ent->d_name);
+
+					// Filecheck new path
+					fileCheck(newPath, searchText);
+					return;
+				}
+				// Control for file
+				else if(ent->d_type == DT_REG)
+				{
+					// File path
+					char tempPath[255];
+					strcpy(tempPath, currentPath);
+					strcat(tempPath, "/");
+					strcat(tempPath, ent->d_name);
+
+					// Searching new path
+					searching(tempPath, searchText);
+
+					// File name print
+					printf("%s dosyası tarandı.\n", ent->d_name);
+					return;
+				}
+			}
+			else  // Parent process after fork succeeds
+			{
+			    wait(NULL);
+			} // end else
+
+		}
+		closedir(dir);
+
+	} // end else
+
+} // end function
