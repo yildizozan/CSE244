@@ -2,62 +2,88 @@
 #include <stdlib.h>
 #include <unistd.h>
 
+#define BUFFER_SIZE 512
+
+void fileCheck(const char *path, const char *text);
+
+// Pipe functions
+void pipeWriting(int fd, const char *path);
+void pipeReading(int fd);
+
 int main(int argc, char const *argv[])
 {
+	/*
+	if (argc != 3)
+	{
+		printf("Usage: ./grepFromDir [directory] [searching text}\n");
+		exit(EXIT_FAILURE);
+	}
+	*/
+
+	fileCheck(argv[1], argv[2]);
+
+	return 0;
+}
+
+void fileCheck(const char *path, const char *text)
+{
+
 	int fileDescription[2];
 
 	if (pipe(fileDescription) < 0)
 	{
 		perror("pipe");
 		exit(EXIT_FAILURE);
-	} // end if (pipe(fileDescription) < 0)
+	}
 	else
 	{
-		// Create process
+		// Create Process
 		pid_t pid = fork();
 
 		if (pid < 0) // Process can't create
 		{
 			perror("fork");
 			exit(EXIT_FAILURE);
-
-		} // end if (pid < 0)
-		else if (pid == 0) // Child process
+		}
+		else if (pid == 0) // Child proces
 		{
-			close(fileDescription[1]); // Childprocess close for write
-
-			int result, val;
-			while ((result = read(fds[0], &val, sizeof(int))) < 0)
-			{
-
-			}
-			if (result < 0)
-			{
-				perror("read");
-				exit(EXIT_FAILURE);
-			}
-
-			close(fileDescription[0]); // Read complete
-
-		} // end else if (pid == 0)
+			close(fileDescription[0]);
+			pipeWriting(fileDescription[1], path);
+			close(fileDescription[1]);
+			exit(EXIT_SUCCESS);
+		}
 		else // Parent process
 		{
-			close(fileDescription[0]); // Parent process close for read
 
-			int i;
-			for (i = 0; i < 100; ++i)
-			{
-				if (write(fds[1], &i, sizeof(int)) < 0)
-				{
-					perror("write");
-					exit(EXIT_FAILURE);
-				}
-			}
-			close(fileDescription[1]); // Writing complete
+			close(fileDescription[1]);
+			pipeReading(fileDescription[0]);
+			close(fileDescription[0]);
+		}
+	}
+}
 
-		} // end else
+void pipeWriting(int fd, const char *path)
+{
+	char bufferSize[BUFFER_SIZE];
+	ssize_t n;
 
-	} // end else (pipe(fileDescription) < 0)
+	while((n = read(fd, bufferSize, BUFFER_SIZE)) > 0)
+		if (write(STDOUT_FILENO, bufferSize, n) != n)
+			perror("write");
 
-	return 0;
+	if (n < 0)
+		perror("read");
+}
+
+void pipeReading(int fd)
+{
+	char bufferSize[BUFFER_SIZE];
+	ssize_t n;
+
+	while((n  = read(fd, bufferSize, BUFFER_SIZE)) > 0)
+		if (write(fd, bufferSize, n) < 0)
+			perror("pipe");
+
+	if (n < 0)
+		perror("read");
 }
