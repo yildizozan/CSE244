@@ -10,7 +10,7 @@
 #define BUFFER_SIZE 1
 #define PATH_SIZE 255
 
-void fileCheck (char *currentPath, char *searchText);
+void fileCheck(char *currentPath, char *searchText);
 int searching(char *filePath, char *searchingText);
 
 int main(int argc, char *argv[])
@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
 	return 0;
 }
 
-void fileCheck (char *currentPath, char *searchText)
+void fileCheck(char *currentPath, char *searchText)
 {
 	// Folder variables
 	DIR *dir;
@@ -52,10 +52,10 @@ void fileCheck (char *currentPath, char *searchText)
 				perror("no child\n");
 				exit(EXIT_FAILURE);
 			}
-			else if(childPid == 0) // Process is success
+			else if (childPid == 0) // Process is success
 			{
 				// NO CWD and upper
-				if(strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+				if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
 					exit(EXIT_FAILURE);
 
 				// Control for folder
@@ -72,7 +72,7 @@ void fileCheck (char *currentPath, char *searchText)
 					return;
 				}
 				// Control for file
-				else if(ent->d_type == DT_REG)
+				else if (ent->d_type == DT_REG)
 				{
 					// File path
 					char tempPath[255];
@@ -90,7 +90,7 @@ void fileCheck (char *currentPath, char *searchText)
 			}
 			else  // Parent process after fork succeeds
 			{
-			    wait(NULL);
+				wait(NULL);
 			} // end else
 
 		}
@@ -143,7 +143,7 @@ int searching(char *filePath, char *searchingText)
 
 					// Write a file
 					FILE *openFileForWriting = fopen("gfD.log", "a+");
-					fprintf(openFileForWriting, "%s file => %s word, %d line and %d column found.\n", filePath, searchingText, currentLineNumber, curentColumnNumber - strlen(searchingText));
+					fprintf(openFileForWriting, "%s file => %s word, %d line and %zu column found.\n", filePath, searchingText, currentLineNumber, curentColumnNumber - strlen(searchingText));
 					fclose(openFileForWriting);
 
 					// Must be zero
@@ -163,6 +163,3 @@ int searching(char *filePath, char *searchingText)
 	}
 	return 0;
 }
-
-// NOTS
-// ent variable name change.
