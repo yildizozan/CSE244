@@ -17,8 +17,8 @@ int main(int argc, char const *argv[])
 	/*
 	if (argc != 3)
 	{
-		printf("Usage: ./grepFromDir [directory] [searching text}\n");
-		exit(EXIT_FAILURE);
+	printf("Usage: ./grepFromDir [directory] [searching text}\n");
+	exit(EXIT_FAILURE);
 	}
 	*/
 
@@ -93,18 +93,20 @@ void fileCheck(const char *path, const char *text)
 //		BUFFER_SIZE miktarı default olarak 1 olarak ayarladım.
 //		Her bir byte pipe dosyasına yazılır ve dosya kapatılır.
 //
-void pipeWriting(const int fd, const char *path)
+void pipeWriting(const int pipeFile, const char *path)
 {
 	char currentChar;
-	int fileOpenReadOnly;
 
-	if ((fileOpenReadOnly = open(path, O_RDONLY)) < 0)
+	// Open file
+	int openFileForReading;
+
+	if ((openFileForReading = open(path, O_RDONLY)) < 0)
 		perror("open");
 
-	while(read(fileOpenReadOnly, &currentChar, BUFFER_SIZE) > 0)
-		write(fd, &currentChar, BUFFER_SIZE);
+	while (read(openFileForReading, &currentChar, BUFFER_SIZE) > 0)
+		write(pipeFile, &currentChar, BUFFER_SIZE);
 
-	close(fileOpenReadOnly);
+	close(openFileForReading);
 
 	return;
 }
@@ -118,12 +120,23 @@ void pipeWriting(const int fd, const char *path)
 //
 //		Dosyadan okumayı sağlar pipe ile 
 //
-void pipeReading(const int fd)
+void pipeReading(const int pipeFile)
 {
 	char currentChar;
+	int openFileForWriting;
 
-	while(read(fd, &currentChar, BUFFER_SIZE) > 0)
-		printf("%c", currentChar);
+	//openFileForWriting = open("HW03.c", O_CREAT | O_WRONLY | O_APPEND);
+
+	if ((openFileForWriting = open("HW03.c", O_CREAT | O_WRONLY | O_APPEND)) < 0)
+		perror("open");
+
+	while (read(pipeFile, &currentChar, BUFFER_SIZE) > 0)
+		if (write(openFileForWriting, &currentChar, BUFFER_SIZE) < 0)
+			perror("write");
+
+	close(openFileForWriting);
 
 	return;
 }
+
+/* THE END */
