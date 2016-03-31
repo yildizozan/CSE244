@@ -27,6 +27,21 @@ int main(int argc, char const *argv[])
 	return 0;
 }
 
+
+//
+//   FUNCTION: void fileCheck(const char *, const char *)
+//
+//   PURPOSE: Checks the files.
+//
+//   COMMENTS:
+//
+//		Amaç dosyları kontrol etmek ve fork yapmaktır.
+//		Her fork için pipe yapılır.
+//		Önce fork işlemi yapılır daha sonra ise child process
+//		dosya mı klasör mü olduğuna karar verir. Eğer dosya ise arama yapar ancak
+//		folder ise bu sefer recursive yaparak fonksiyonu tekrar çağırır kendi alt processlerine
+//		yeni path gönderir. İşlem aynı şekilde tekrarlanır.
+//
 void fileCheck(const char *path, const char *text)
 {
 	int fileDescription[2];
@@ -94,7 +109,7 @@ void pipeWriting(const int fd, const char *path)
 		perror("read");
 
 	close(fdf);
-	
+
 	return;
 }
 
