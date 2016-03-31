@@ -94,21 +94,22 @@ void fileCheck(const char *path, const char *text)
 //
 void pipeWriting(const int fd, const char *path)
 {
-	char bufferSize[BUFFER_SIZE];
+	char currentChar[BUFFER_SIZE];
 	ssize_t n;
-	int fdf;
+	int fileOpenReadOnly;
 
-	if ((fdf = open(path, O_RDONLY)) < 0)
+	if ((fileOpenReadOnly = open(path, O_RDONLY)) < 0)
 		perror("open");
 
-	while((n = read(fdf, bufferSize, BUFFER_SIZE)) > 0)
-		if (write(fd, bufferSize, n) != n)
+	while((n = read(fileOpenReadOnly, currentChar, BUFFER_SIZE)) > 0)
+		if (write(fd, currentChar, n) != n)
 			perror("write");
+
 
 	if (n < 0)
 		perror("read");
 
-	close(fdf);
+	close(fileOpenReadOnly);
 
 	return;
 }
@@ -124,15 +125,10 @@ void pipeWriting(const int fd, const char *path)
 //
 void pipeReading(const int fd)
 {
-	char bufferSize[BUFFER_SIZE];
-	ssize_t n;
+	char currentChar;
 
-	while((n  = read(fd, bufferSize, BUFFER_SIZE)) > 0)
-		if (write(STDOUT_FILENO, bufferSize, n) < 0)
-			perror("pipe");
-
-	if (n < 0)
-		perror("read");
+	while(read(fd, &currentChar, BUFFER_SIZE) > 0)
+		printf("%c", currentChar);
 
 	return;
 }
