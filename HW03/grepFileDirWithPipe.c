@@ -76,6 +76,7 @@ void fileCheck(const char *path, const char *text)
 			close(fileDescription[1]);
 			pipeReading(fileDescription[0]);
 			close(fileDescription[0]);
+			exit(EXIT_SUCCESS);
 		}
 	}
 }
@@ -94,20 +95,14 @@ void fileCheck(const char *path, const char *text)
 //
 void pipeWriting(const int fd, const char *path)
 {
-	char currentChar[BUFFER_SIZE];
-	ssize_t n;
+	char currentChar;
 	int fileOpenReadOnly;
 
 	if ((fileOpenReadOnly = open(path, O_RDONLY)) < 0)
 		perror("open");
 
-	while((n = read(fileOpenReadOnly, currentChar, BUFFER_SIZE)) > 0)
-		if (write(fd, currentChar, n) != n)
-			perror("write");
-
-
-	if (n < 0)
-		perror("read");
+	while(read(fileOpenReadOnly, &currentChar, BUFFER_SIZE) > 0)
+		write(fd, &currentChar, BUFFER_SIZE);
 
 	close(fileOpenReadOnly);
 
