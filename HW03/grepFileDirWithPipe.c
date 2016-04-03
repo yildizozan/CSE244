@@ -31,7 +31,6 @@ int main(int argc, char const *argv[])
 	return 0;
 }
 
-
 //
 //   FUNCTION:	openDirectory
 //
@@ -61,33 +60,38 @@ void openDirectory(const char *path, const char *text)
 	{
 		while ((entry = readdir(directory)) != NULL)
 		{
-				// Control: Is this folder?
-				if (entry->d_type == DT_DIR)
-				{
-					// Create new folder path
-					char newFolderPath[MAX_PATH];
-					strcpy(newFolderPath, path);
-					strcat(newFolderPath, "/");
-					strcat(newFolderPath, entry->d_name);
+			
+			if (strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0)
+				continue;
+			
+			// Control: Is this folder?
+			if (entry->d_type == DT_DIR)
+			{
+				// Create new folder path
+				char newFolderPath[MAX_PATH];
+				strcpy(newFolderPath, path);
+				strcat(newFolderPath, "/");
+				strcat(newFolderPath, entry->d_name);
 
-					// openDirectory new path
-					openDirectory(newFolderPath, text);
+				// openDirectory new path
+				openDirectory(newFolderPath, text);
 
-				}
-				// Control: Is this file?
-				if (entry->d_type == DT_REG)
-				{
-					// Create file path
-					char newFilePath[MAX_PATH];
-					strcpy(newFilePath, path);
-					strcat(newFilePath, "/");
-					strcat(newFilePath, entry->d_name);
+			}
 
-					// searchFile in file
-					searchFile(newFilePath, text);
+			// Control: Is this file?
+			if (entry->d_type == DT_REG)
+			{
+				// Create file path
+				char newFilePath[MAX_PATH];
+				strcpy(newFilePath, path);
+				strcat(newFilePath, "/");
+				strcat(newFilePath, entry->d_name);
 
-					exit(EXIT_SUCCESS);
-				}
+				// searchFile in file
+				searchFile(newFilePath, text);
+
+				//exit(EXIT_SUCCESS);
+			}
 		}
 	}
 
