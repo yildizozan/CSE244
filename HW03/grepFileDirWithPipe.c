@@ -13,7 +13,7 @@
 #define MAX_TEXT_LENGTH 256
 
 void openDirectory(const char *, const char *);
-int searchInFile(const char *, const char *, int);
+int searchInFile(const char *, const char*, const char *, int);
 
 void writingLog(const char*);
 
@@ -105,17 +105,10 @@ void openDirectory(const char *path, const char *text)
 					{
 						close(fileDescription[0]);
 
-						// Create file path
-						char newFilePath[MAX_PATH];
-						strcpy(newFilePath, path);
-						strcat(newFilePath, "/");
-						strcat(newFilePath, entry->d_name);
-
-						// Search text in file
-						searchInFile(newFilePath, text, fileDescription[1]);
+						// We search text in file
+						searchInFile(path, entry->d_name, text, fileDescription[1]);
 
 						close(fileDescription[1]);
-
 						exit(EXIT_SUCCESS);
 					}
 					else // Parent process
@@ -149,10 +142,16 @@ void openDirectory(const char *path, const char *text)
 //		BUFFER_SIZE miktarı default olarak 1 olarak ayarladım.
 //		Her bir byte pipe dosyasına yazılır ve dosya kapatılır.
 //
-int searchInFile(const char *filePath, const char *searchInFileText, int fileDescription)
+int searchInFile(const char* filePath, const char* fileName, const char *searchInFileText, int fileDescription)
 {
+	// Create new folder path
+	char newPath[MAX_PATH];
+	strcpy(newPath, filePath);
+	strcat(newPath, "/");
+	strcat(newPath, fileName);
+
 	/* Test */
-	printf("%s\n", filePath);
+	printf("%s/%s - %d\n", filePath, fileName, getpid());
 
 	// Variables
 	int currentLineNumber = 1,		// currentLineNumber is line counter
@@ -163,7 +162,13 @@ int searchInFile(const char *filePath, const char *searchInFileText, int fileDes
 	char currentChar;
 
 	// Opening file (READ ONLY MODE)
-	int openFileForReading = open(filePath, O_RDONLY);
+	int openFileForReading = open(newPath, O_RDONLY);
+
+	// Opening temp file for result
+	char tempfileName[MAX_TEXT_LENGTH];
+	snprintf(tempfileName, sizeof(tempfileName), "%d.txt", getpid());
+
+	int openTempFileForWriting = open(tempfileName, O_CREAT | O_WRONLY | O_APPEND);
 
 	if (openFileForReading == -1)
 	{
@@ -193,16 +198,25 @@ int searchInFile(const char *filePath, const char *searchInFileText, int fileDes
 				{
 					++totalWord;
 
-					// Create string
-					char tempText = [MAX_TEXT_LENGTH];
-					snprintf(resultText, sizeof(resultText), "%s file => %s word found at %d line, %zu column.\n", 
-						filePath,
-						searchInFileText, 
-						currentLineNumber, 
-						curentColumnNumber - strlen(searchInFileText));
+					// Create result string for write temp file
+					char tempResultText[MAX_TEXT_LENGTH];
 
+					{
+					snprintf(
+						tempResultText, 
+						sizeof(tempResultText),
+						"Path: %s\n%s word in %s\n %d line %d column found.\n",
+							filePath, 
+							searchInFileText, 
+							fileName, 
+							currentLineNumber, 
+							curentColumnNumber - strlen(searchInFileText)
+						);
+					}
 
-
+					// We're writing result string in temp file
+					write(openTempFileForWriting, tempResultText, strlen(tempResultText));
+					close(openTempFileForWriting);
 
 					// Must be zero
 					countLetter = 0;
@@ -213,8 +227,16 @@ int searchInFile(const char *filePath, const char *searchInFileText, int fileDes
 				countLetter = 0;
 				countArgv = 0;
 			}
+		} // end while
 
+ 		// Close temp file
+		if (0 < totalWord)
+		{
+			char* reagent = "---------------\n";
+			write(openTempFileForWriting, reagent, strlen(reagent));
+			close(openTempFileForWriting);
 		}
+
 
 		// Close reading file
 		close(openFileForReading);
@@ -222,7 +244,7 @@ int searchInFile(const char *filePath, const char *searchInFileText, int fileDes
 
 	{ // Write pipe
 
-		write(fileDescription, resultText, strlen(resultText) + 1);
+		//write(fileDescription, resultText, strlen(resultText) + 1);
 	}
 
 	return 0;
