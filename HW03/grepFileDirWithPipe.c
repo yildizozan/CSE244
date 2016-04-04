@@ -4,13 +4,18 @@
 #include <fcntl.h>
 #include <string.h>
 #include <dirent.h>
+#include <string.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 
 #define BUFFER_SIZE 1
 #define MAX_PATH 256
+#define MAX_TEXT_LENGTH 256
 
 void openDirectory(const char *, const char *);
-int searchFile(const char *, const char *);
+int searchInFile(const char *, const char*, const char *, int);
+
+void writingLog(const char*);
 
 // Pipe functions
 void pipeWriting(const int, const char *);
@@ -21,7 +26,7 @@ int main(int argc, char const *argv[])
 	/*
 	if (argc != 3)
 	{
-	printf("Usage: ./grepFromDir [directory] [searchFile text}\n");
+	printf("Usage: ./grepFromDir [directory] [searchInFile text}\n");
 	exit(EXIT_FAILURE);
 	}
 	*/
@@ -60,9 +65,10 @@ void openDirectory(const char *path, const char *text)
 	{
 		while ((entry = readdir(directory)) != NULL)
 		{
-			
+
 			if (strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0)
 				continue;
+
 			
 			// Control: Is this folder?
 			if (entry->d_type == DT_DIR)
@@ -77,65 +83,57 @@ void openDirectory(const char *path, const char *text)
 				openDirectory(newFolderPath, text);
 
 			}
+			
 
 			// Control: Is this file?
 			if (entry->d_type == DT_REG)
 			{
-				// Create file path
-				char newFilePath[MAX_PATH];
-				strcpy(newFilePath, path);
-				strcat(newFilePath, "/");
-				strcat(newFilePath, entry->d_name);
+				// Pipe and fork variable
+				int fileDescription[2];
+				pid_t pid;
 
-				// searchFile in file
-				searchFile(newFilePath, text);
+				if ((pipe(fileDescription) < 0) || ((pid = fork()) < 0))
+				{
+					perror("pipe");
+					perror("fork");
+					exit(EXIT_FAILURE);
+				}
 
-				//exit(EXIT_SUCCESS);
-			}
-		}
-	}
+				else
+				{
+					if (pid == 0) // Child proces
+					{
+						close(fileDescription[0]);
 
-	int fileDescription[2];
+						// We search text in file
+						searchInFile(path, entry->d_name, text, fileDescription[1]);
 
-	if (pipe(fileDescription) < 0)
-	{
-		perror("pipe");
-		exit(EXIT_FAILURE);
-	}
-	else
-	{
-		// Create Process
-		pid_t pid = fork();
+						close(fileDescription[1]);
+						exit(EXIT_SUCCESS);
+					}
+					else // Parent process
+					{
 
-		if (pid < 0) // Process can't create
-		{
-			perror("fork");
-			exit(EXIT_FAILURE);
-		}
-		else if (pid == 0) // Child proces
-		{
+						char readText[MAX_TEXT_LENGTH];
 
+						close(fileDescription[1]);
+						read(fileDescription[0], readText, sizeof(readText) + 1);
 
-			close(fileDescription[0]);
-			pipeWriting(fileDescription[1], path);
-			close(fileDescription[1]);
-			exit(EXIT_SUCCESS);
-		}
-		else // Parent process
-		{
+						writingLog(readText);
 
-			close(fileDescription[1]);
-			pipeReading(fileDescription[0]);
-			close(fileDescription[0]);
-			exit(EXIT_SUCCESS);
-		}
-	}
-}
+						close(fileDescription[0]);
+						wait(NULL);
+					}
+				} // end if else
+			} // end if
+		} // end while
+	} // end if else
+} // end function
 
 //
-//   FUNCTION:	searchFile
+//   FUNCTION:	searchInFile
 //
-//   PURPOSE:	Writing with pipe
+//   PURPOSE:	Search file and send with pipe
 //
 //   COMMENTS(TR):
 //
@@ -144,21 +142,33 @@ void openDirectory(const char *path, const char *text)
 //		BUFFER_SIZE miktarı default olarak 1 olarak ayarladım.
 //		Her bir byte pipe dosyasına yazılır ve dosya kapatılır.
 //
-int searchFile(const char *filePath, const char *searchFileText)
+int searchInFile(const char* filePath, const char* fileName, const char *searchInFileText, int fileDescription)
 {
+	// Create new folder path
+	char newPath[MAX_PATH];
+	strcpy(newPath, filePath);
+	strcat(newPath, "/");
+	strcat(newPath, fileName);
+
 	/* Test */
-	printf("%s\n", filePath);
+	printf("%s/%s - %d\n", filePath, fileName, getpid());
 
 	// Variables
-	int currentLineNumber = 1,	// currentLineNumber is line counter
+	int currentLineNumber = 1,		// currentLineNumber is line counter
 		curentColumnNumber = 1,		// curentColumnNumber is column counter
 		countLetter = 0,			// countLetter need to while loop
-		totalWord = 0;				// totalWord find searchFile text in the file
+		totalWord = 0;				// totalWord find searchInFile text in the file
 
 	char currentChar;
 
 	// Opening file (READ ONLY MODE)
-	int openFileForReading = open(filePath, O_RDONLY);
+	int openFileForReading = open(newPath, O_RDONLY);
+
+	// Opening temp file for result
+	char tempfileName[MAX_TEXT_LENGTH];
+	snprintf(tempfileName, sizeof(tempfileName), "%d.txt", getpid());
+
+	int openTempFileForWriting = open(tempfileName, O_CREAT | O_WRONLY | O_APPEND);
 
 	if (openFileForReading == -1)
 	{
@@ -179,19 +189,34 @@ int searchFile(const char *filePath, const char *searchFileText)
 			}
 
 			// Control word
-			if (currentChar == searchFileText[countArgv])
+			if (currentChar == searchInFileText[countArgv])
 			{
 				++countLetter;
 				++countArgv;
 
-				if (countLetter == strlen(searchFileText))
+				if (countLetter == strlen(searchInFileText))
 				{
 					++totalWord;
 
-					// Write a file
-					FILE *openFileForWriting = fopen("gfD.log", "a+");
-					fprintf(openFileForWriting, "%s file => %s word, %d line and %zu column found.\n", filePath, searchFileText, currentLineNumber, curentColumnNumber - strlen(searchFileText));
-					fclose(openFileForWriting);
+					// Create result string for write temp file
+					char tempResultText[MAX_TEXT_LENGTH];
+
+					{
+					snprintf(
+						tempResultText, 
+						sizeof(tempResultText),
+						"Path: %s\n%s word in %s\n %d line %d column found.\n",
+							filePath, 
+							searchInFileText, 
+							fileName, 
+							currentLineNumber, 
+							curentColumnNumber - strlen(searchInFileText)
+						);
+					}
+
+					// We're writing result string in temp file
+					write(openTempFileForWriting, tempResultText, strlen(tempResultText));
+					close(openTempFileForWriting);
 
 					// Must be zero
 					countLetter = 0;
@@ -202,13 +227,39 @@ int searchFile(const char *filePath, const char *searchFileText)
 				countLetter = 0;
 				countArgv = 0;
 			}
+		} // end while
 
+ 		// Close temp file
+		if (0 < totalWord)
+		{
+			char* reagent = "---------------\n";
+			write(openTempFileForWriting, reagent, strlen(reagent));
+			close(openTempFileForWriting);
 		}
+
 
 		// Close reading file
 		close(openFileForReading);
 	}
+
+	{ // Write pipe
+
+		//write(fileDescription, resultText, strlen(resultText) + 1);
+	}
+
 	return 0;
+}
+
+void writingLog(const char* text)
+{
+	int openFileForWriting;
+	
+	if ((openFileForWriting = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND)) < 0)
+		perror("open");
+
+	write(openFileForWriting, text, strlen(text));
+
+	close(openFileForWriting);
 }
 
 //
@@ -223,20 +274,9 @@ int searchFile(const char *filePath, const char *searchFileText)
 //		BUFFER_SIZE miktarı default olarak 1 olarak ayarladım.
 //		Her bir byte pipe dosyasına yazılır ve dosya kapatılır.
 //
-void pipeWriting(const int pipeFile, const char *path)
+void pipeWriting(const int pipeFile, const char *text)
 {
-	char currentChar;
-
-	// Open file
-	int openFileForReading;
-
-	if ((openFileForReading = open(path, O_RDONLY)) < 0)
-		perror("open");
-
-	while (read(openFileForReading, &currentChar, BUFFER_SIZE) > 0)
-		write(pipeFile, &currentChar, BUFFER_SIZE);
-
-	close(openFileForReading);
+	write(pipeFile, text, strlen(text)); // Pipe dosyasına yazacak
 
 	return;
 }
@@ -255,12 +295,10 @@ void pipeReading(const int pipeFile)
 	char currentChar;
 	int openFileForWriting;
 
-	//openFileForWriting = open("HW03.c", O_CREAT | O_WRONLY | O_APPEND);
-
-	if ((openFileForWriting = open("HW03.cpp", O_CREAT | O_WRONLY | O_APPEND)) < 0)
+	if ((openFileForWriting = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND)) < 0)
 		perror("open");
 
-	while (read(pipeFile, &currentChar, BUFFER_SIZE) > 0)
+	while (read(pipeFile, &currentChar, BUFFER_SIZE) > 0) // Pipe dosyasından okuma yapacak
 		if (write(openFileForWriting, &currentChar, BUFFER_SIZE) < 0)
 			perror("write");
 
@@ -269,4 +307,3 @@ void pipeReading(const int pipeFile)
 	return;
 }
 
-/* THE END */
