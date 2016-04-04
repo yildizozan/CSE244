@@ -4,24 +4,31 @@
 #include <fcntl.h>
 #include <string.h>
 #include <dirent.h>
+#include <string.h>
 #include <sys/types.h>
 
 #define BUFFER_SIZE 1
 #define MAX_PATH 256
+#define MAX_TEXT_LENGTH 256
 
 void openDirectory(const char *, const char *);
-int searchFile(const char *, const char *);
+int searchInFile(const char *, const char *, int);
+
+void writingLog(const char*);
 
 // Pipe functions
 void pipeWriting(const int, const char *);
 void pipeReading(const int);
+
+// New path
+const char* createNewPath(const char*, const char*);
 
 int main(int argc, char const *argv[])
 {
 	/*
 	if (argc != 3)
 	{
-	printf("Usage: ./grepFromDir [directory] [searchFile text}\n");
+	printf("Usage: ./grepFromDir [directory] [searchInFile text}\n");
 	exit(EXIT_FAILURE);
 	}
 	*/
@@ -60,13 +67,14 @@ void openDirectory(const char *path, const char *text)
 	{
 		while ((entry = readdir(directory)) != NULL)
 		{
-			
+
 			if (strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0)
 				continue;
+
 			
 			// Control: Is this folder?
 			if (entry->d_type == DT_DIR)
-			{
+			{	/*
 				// Create new folder path
 				char newFolderPath[MAX_PATH];
 				strcpy(newFolderPath, path);
@@ -75,76 +83,89 @@ void openDirectory(const char *path, const char *text)
 
 				// openDirectory new path
 				openDirectory(newFolderPath, text);
+				*/
 
 			}
+			
 
 			// Control: Is this file?
 			if (entry->d_type == DT_REG)
 			{
-				// Create file path
-				char newFilePath[MAX_PATH];
-				strcpy(newFilePath, path);
-				strcat(newFilePath, "/");
-				strcat(newFilePath, entry->d_name);
+				int fd[2];
+				pid_t pid = fork();
+				if ((pipe(fileDescription) == -1) || ((childpid = fork()) == -1)) {
+				{
+					perror("pipe");
+					perror("fork");
+					exit(EXIT_FAILURE);
+				}
+				// Pipe variable
+				int fd[2];
 
-				// searchFile in file
-				searchFile(newFilePath, text);
+				// File Description
+				int fileDescription[2];
 
-				//exit(EXIT_SUCCESS);
-			}
-		}
-	}
+				if (pipe(fileDescription) < 0)
+				{
+					perror("pipe");
+					exit(EXIT_FAILURE);
+				}
+				else
+				{
+					// Create Process
+					
 
-	int fileDescription[2];
+					if (pid < 0) // Process can't create
+					{
+						perror("fork");
+						exit(EXIT_FAILURE);
+					}
+					else if (pid == 0) // Child proces
+					{
+						close(fileDescription[0]);
 
-	if (pipe(fileDescription) < 0)
-	{
-		perror("pipe");
-		exit(EXIT_FAILURE);
-	}
-	else
-	{
-		// Create Process
-		pid_t pid = fork();
+						// Create file path
+						char newFilePath[MAX_PATH];
+						strcpy(newFilePath, path);
+						strcat(newFilePath, "/");
+						strcat(newFilePath, entry->d_name);
 
-		if (pid < 0) // Process can't create
-		{
-			perror("fork");
-			exit(EXIT_FAILURE);
-		}
-		else if (pid == 0) // Child proces
-		{
+						// Search text in file
+						searchInFile(newFilePath, text, fileDescription[1]);
 
+						close(fileDescription[1]);
 
-			close(fileDescription[0]);
-			pipeWriting(fileDescription[1], path);
-			close(fileDescription[1]);
-			exit(EXIT_SUCCESS);
-		}
-		else // Parent process
-		{
+						exit(EXIT_SUCCESS);
+					}
+					else // Parent process
+					{
+						char readText[MAX_TEXT_LENGTH];
 
-			close(fileDescription[1]);
-			pipeReading(fileDescription[0]);
-			close(fileDescription[0]);
-			exit(EXIT_SUCCESS);
-		}
-	}
-}
+						close(fileDescription[1]);
+						read(fileDescription[0], readText, sizeof(readText) + 1);
+
+						writingLog(readText);
+						close(fileDescription[0]);
+					}
+				} // end if else
+			} // end if
+		} // end while
+	} // end if else
+} // end function
 
 //
-//   FUNCTION:	searchFile
+//   FUNCTION:	searchInFile
 //
 //   PURPOSE:	Writing with pipe
 //
 //   COMMENTS(TR):
 //
-//		Aldığı path argümanı ile ilgili dosyayı READONLY modunda açar.
+//		Aldığı path argümanı ile ilgili do+++++++++++++syayı READONLY modunda açar.
 //		Daha sonra açmış olduğu bu dosyadan BUFFER_SIZE miktarı kadar okur.
 //		BUFFER_SIZE miktarı default olarak 1 olarak ayarladım.
 //		Her bir byte pipe dosyasına yazılır ve dosya kapatılır.
 //
-int searchFile(const char *filePath, const char *searchFileText)
+int searchInFile(const char *filePath, const char *searchInFileText, int fileDescription)
 {
 	/* Test */
 	printf("%s\n", filePath);
@@ -153,7 +174,7 @@ int searchFile(const char *filePath, const char *searchFileText)
 	int currentLineNumber = 1,	// currentLineNumber is line counter
 		curentColumnNumber = 1,		// curentColumnNumber is column counter
 		countLetter = 0,			// countLetter need to while loop
-		totalWord = 0;				// totalWord find searchFile text in the file
+		totalWord = 0;				// totalWord find searchInFile text in the file
 
 	char currentChar;
 
@@ -179,19 +200,26 @@ int searchFile(const char *filePath, const char *searchFileText)
 			}
 
 			// Control word
-			if (currentChar == searchFileText[countArgv])
+			if (currentChar == searchInFileText[countArgv])
 			{
 				++countLetter;
 				++countArgv;
 
-				if (countLetter == strlen(searchFileText))
+				if (countLetter == strlen(searchInFileText))
 				{
 					++totalWord;
 
+					// Create string
+					char resultText[MAX_TEXT_LENGTH];
+					snprintf(resultText, sizeof(resultText), "%s file => %s word, %d line and %zu column found.\n", 
+						filePath,
+						searchInFileText, 
+						currentLineNumber, 
+						curentColumnNumber - strlen(searchInFileText));
+
+					write(fileDescription, resultText, strlen(resultText) + 1);
+
 					// Write a file
-					FILE *openFileForWriting = fopen("gfD.log", "a+");
-					fprintf(openFileForWriting, "%s file => %s word, %d line and %zu column found.\n", filePath, searchFileText, currentLineNumber, curentColumnNumber - strlen(searchFileText));
-					fclose(openFileForWriting);
 
 					// Must be zero
 					countLetter = 0;
@@ -211,6 +239,18 @@ int searchFile(const char *filePath, const char *searchFileText)
 	return 0;
 }
 
+void writingLog(const char* text)
+{
+	int openFileForWriting;
+	
+	if ((openFileForWriting = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND)) < 0)
+		perror("open");
+
+	write(openFileForWriting, text, strlen(text));
+
+	close(openFileForWriting);
+}
+
 //
 //   FUNCTION:	pipeWriting
 //
@@ -223,20 +263,9 @@ int searchFile(const char *filePath, const char *searchFileText)
 //		BUFFER_SIZE miktarı default olarak 1 olarak ayarladım.
 //		Her bir byte pipe dosyasına yazılır ve dosya kapatılır.
 //
-void pipeWriting(const int pipeFile, const char *path)
+void pipeWriting(const int pipeFile, const char *text)
 {
-	char currentChar;
-
-	// Open file
-	int openFileForReading;
-
-	if ((openFileForReading = open(path, O_RDONLY)) < 0)
-		perror("open");
-
-	while (read(openFileForReading, &currentChar, BUFFER_SIZE) > 0)
-		write(pipeFile, &currentChar, BUFFER_SIZE);
-
-	close(openFileForReading);
+	write(pipeFile, text, strlen(text)); // Pipe dosyasına yazacak
 
 	return;
 }
@@ -255,12 +284,10 @@ void pipeReading(const int pipeFile)
 	char currentChar;
 	int openFileForWriting;
 
-	//openFileForWriting = open("HW03.c", O_CREAT | O_WRONLY | O_APPEND);
-
-	if ((openFileForWriting = open("HW03.cpp", O_CREAT | O_WRONLY | O_APPEND)) < 0)
+	if ((openFileForWriting = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND)) < 0)
 		perror("open");
 
-	while (read(pipeFile, &currentChar, BUFFER_SIZE) > 0)
+	while (read(pipeFile, &currentChar, BUFFER_SIZE) > 0) // Pipe dosyasından okuma yapacak
 		if (write(openFileForWriting, &currentChar, BUFFER_SIZE) < 0)
 			perror("write");
 
@@ -269,4 +296,28 @@ void pipeReading(const int pipeFile)
 	return;
 }
 
-/* THE END */
+//
+//   FUNCTION:	newPath
+//
+//   PURPOSE:	Create a new path for files and folders
+//
+//   COMMENTS(TR):
+//
+//		Yeni dosya veya klasör için dosya yolu yaratır.
+//
+const char* createNewPath(const char* path, const char* d_name)
+{
+		// Create file path
+	char* newPath;
+	strcpy(newPath, path);
+	strcat(newPath, "/");
+	strcat(newPath, d_name);
+
+	return newPath;
+}
+
+/*
+	FILE *openFileForWriting = fopen("gfD.log", "a+");
+	fprintf(openFileForWriting, "%s file => %s word, %d line and %zu column found.\n", filePath, searchInFileText, currentLineNumber, curentColumnNumber - strlen(searchInFileText));
+	fclose(openFileForWriting);
+*/
