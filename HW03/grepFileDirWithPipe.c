@@ -6,6 +6,7 @@
 #include <dirent.h>
 #include <string.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 
 #define BUFFER_SIZE 1
 #define MAX_PATH 256
@@ -19,9 +20,6 @@ void writingLog(const char*);
 // Pipe functions
 void pipeWriting(const int, const char *);
 void pipeReading(const int);
-
-// New path
-const char* createNewPath(const char*, const char*);
 
 int main(int argc, char const *argv[])
 {
@@ -74,7 +72,7 @@ void openDirectory(const char *path, const char *text)
 			
 			// Control: Is this folder?
 			if (entry->d_type == DT_DIR)
-			{	/*
+			{
 				// Create new folder path
 				char newFolderPath[MAX_PATH];
 				strcpy(newFolderPath, path);
@@ -83,7 +81,6 @@ void openDirectory(const char *path, const char *text)
 
 				// openDirectory new path
 				openDirectory(newFolderPath, text);
-				*/
 
 			}
 			
@@ -91,36 +88,20 @@ void openDirectory(const char *path, const char *text)
 			// Control: Is this file?
 			if (entry->d_type == DT_REG)
 			{
-				int fd[2];
-				pid_t pid = fork();
-				if ((pipe(fileDescription) == -1) || ((childpid = fork()) == -1)) {
+				// Pipe and fork variable
+				int fileDescription[2];
+				pid_t pid;
+
+				if ((pipe(fileDescription) < 0) || ((pid = fork()) < 0))
 				{
 					perror("pipe");
 					perror("fork");
 					exit(EXIT_FAILURE);
 				}
-				// Pipe variable
-				int fd[2];
 
-				// File Description
-				int fileDescription[2];
-
-				if (pipe(fileDescription) < 0)
-				{
-					perror("pipe");
-					exit(EXIT_FAILURE);
-				}
 				else
 				{
-					// Create Process
-					
-
-					if (pid < 0) // Process can't create
-					{
-						perror("fork");
-						exit(EXIT_FAILURE);
-					}
-					else if (pid == 0) // Child proces
+					if (pid == 0) // Child proces
 					{
 						close(fileDescription[0]);
 
@@ -139,13 +120,16 @@ void openDirectory(const char *path, const char *text)
 					}
 					else // Parent process
 					{
+
 						char readText[MAX_TEXT_LENGTH];
 
 						close(fileDescription[1]);
 						read(fileDescription[0], readText, sizeof(readText) + 1);
 
 						writingLog(readText);
+
 						close(fileDescription[0]);
+						wait(NULL);
 					}
 				} // end if else
 			} // end if
@@ -156,11 +140,11 @@ void openDirectory(const char *path, const char *text)
 //
 //   FUNCTION:	searchInFile
 //
-//   PURPOSE:	Writing with pipe
+//   PURPOSE:	Search file and send with pipe
 //
 //   COMMENTS(TR):
 //
-//		Aldığı path argümanı ile ilgili do+++++++++++++syayı READONLY modunda açar.
+//		Aldığı path argümanı ile ilgili dosyayı READONLY modunda açar.
 //		Daha sonra açmış olduğu bu dosyadan BUFFER_SIZE miktarı kadar okur.
 //		BUFFER_SIZE miktarı default olarak 1 olarak ayarladım.
 //		Her bir byte pipe dosyasına yazılır ve dosya kapatılır.
@@ -171,7 +155,7 @@ int searchInFile(const char *filePath, const char *searchInFileText, int fileDes
 	printf("%s\n", filePath);
 
 	// Variables
-	int currentLineNumber = 1,	// currentLineNumber is line counter
+	int currentLineNumber = 1,		// currentLineNumber is line counter
 		curentColumnNumber = 1,		// curentColumnNumber is column counter
 		countLetter = 0,			// countLetter need to while loop
 		totalWord = 0;				// totalWord find searchInFile text in the file
@@ -210,16 +194,15 @@ int searchInFile(const char *filePath, const char *searchInFileText, int fileDes
 					++totalWord;
 
 					// Create string
-					char resultText[MAX_TEXT_LENGTH];
-					snprintf(resultText, sizeof(resultText), "%s file => %s word, %d line and %zu column found.\n", 
+					char tempText = [MAX_TEXT_LENGTH];
+					snprintf(resultText, sizeof(resultText), "%s file => %s word found at %d line, %zu column.\n", 
 						filePath,
 						searchInFileText, 
 						currentLineNumber, 
 						curentColumnNumber - strlen(searchInFileText));
 
-					write(fileDescription, resultText, strlen(resultText) + 1);
 
-					// Write a file
+
 
 					// Must be zero
 					countLetter = 0;
@@ -236,6 +219,12 @@ int searchInFile(const char *filePath, const char *searchInFileText, int fileDes
 		// Close reading file
 		close(openFileForReading);
 	}
+
+	{ // Write pipe
+
+		write(fileDescription, resultText, strlen(resultText) + 1);
+	}
+
 	return 0;
 }
 
@@ -296,28 +285,3 @@ void pipeReading(const int pipeFile)
 	return;
 }
 
-//
-//   FUNCTION:	newPath
-//
-//   PURPOSE:	Create a new path for files and folders
-//
-//   COMMENTS(TR):
-//
-//		Yeni dosya veya klasör için dosya yolu yaratır.
-//
-const char* createNewPath(const char* path, const char* d_name)
-{
-		// Create file path
-	char* newPath;
-	strcpy(newPath, path);
-	strcat(newPath, "/");
-	strcat(newPath, d_name);
-
-	return newPath;
-}
-
-/*
-	FILE *openFileForWriting = fopen("gfD.log", "a+");
-	fprintf(openFileForWriting, "%s file => %s word, %d line and %zu column found.\n", filePath, searchInFileText, currentLineNumber, curentColumnNumber - strlen(searchInFileText));
-	fclose(openFileForWriting);
-*/
