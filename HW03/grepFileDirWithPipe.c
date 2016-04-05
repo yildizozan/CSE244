@@ -10,7 +10,7 @@
 
 #define BUFFER_SIZE 1
 #define MAX_PATH 256
-#define MAX_TEXT_LENGTH 256
+#define MAX_TEXT_LENGTH 2048
 
 void openDirectory(const char *, const char *);
 int searchInFile(const char *, const char*, const char *, int);
@@ -119,7 +119,6 @@ void openDirectory(const char *path, const char *text)
 						close(fileDescription[1]);
 						read(fileDescription[0], &readText, sizeof(readText) + 1);
 
-						printf("%s\n", readText);
 						//writingLog(readText);
 
 						close(fileDescription[0]);
@@ -171,7 +170,7 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 	// Opening temp file for result
 	char tempfileName[MAX_TEXT_LENGTH];
 	snprintf(tempfileName, sizeof(tempfileName), "%d.txt", getpid());
-	int tempFileForWriting = open(tempfileName, O_CREAT | O_RDWR | O_APPEND);
+	int tempFileForWriting = open(tempfileName, O_CREAT | O_WRONLY | O_APPEND);
 
 		// Create result header text for temp file
 		char tempResultText[MAX_TEXT_LENGTH];
@@ -243,15 +242,16 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 		{
 			char* reagent = "---------------------------------------------\n";
 			write(tempFileForWriting, reagent, strlen(reagent));
+			close(tempFileForWriting);
 
 			// Send pipe all result
-			char asd[255];
-			int das;
-			if ((das = read(tempFileForWriting, asd, 255)) < 0)
-				perror("read");
-
-			printf("read text : \n%s\n----------------\n", asd);
+			char asd[MAX_TEXT_LENGTH];
+			int fd = open(tempfileName, O_RDONLY);
+			if (read(tempFileForWriting, asd, MAX_TEXT_LENGTH) < 0)
+				perror("error");
 			
+			printf("%s\n", asd);
+
 			//write(fileDescription, asd, strlen(asd) + 1);
 		}
 		else
