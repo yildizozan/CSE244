@@ -167,9 +167,22 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 	// Opening temp file for result
 	char tempfileName[MAX_TEXT_LENGTH];
 	snprintf(tempfileName, sizeof(tempfileName), "%d.txt", getpid());
-
 	int openTempFileForWriting = open(tempfileName, O_CREAT | O_WRONLY | O_APPEND);
 
+		// Create result header text for temp file
+		char tempResultText[MAX_TEXT_LENGTH];
+		snprintf(
+		tempResultText, 
+		sizeof(tempResultText),
+		"Path: %s\n%s word in %s file\n",
+			filePath, 
+			searchInFileText, 
+			fileName
+		);
+		write(openTempFileForWriting, tempResultText, strlen(tempResultText));
+
+
+	// We're starting to read file
 	if (openFileForReading == -1)
 	{
 		printf("Error for opening file.\nExiting..\n");
@@ -199,24 +212,16 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 					++totalWord;
 
 					// Create result string for write temp file
-					char tempResultText[MAX_TEXT_LENGTH];
-
-					{
 					snprintf(
 						tempResultText, 
 						sizeof(tempResultText),
-						"Path: %s\n%s word in %s\n %d line %d column found.\n",
-							filePath, 
-							searchInFileText, 
-							fileName, 
+						"\t%d line, %d column found.\n",
 							currentLineNumber, 
 							curentColumnNumber - strlen(searchInFileText)
 						);
-					}
 
 					// We're writing result string in temp file
 					write(openTempFileForWriting, tempResultText, strlen(tempResultText));
-					close(openTempFileForWriting);
 
 					// Must be zero
 					countLetter = 0;
@@ -232,14 +237,16 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
  		// Close temp file
 		if (0 < totalWord)
 		{
-			char* reagent = "---------------\n";
+			char* reagent = "---------------------------------------------\n";
 			write(openTempFileForWriting, reagent, strlen(reagent));
 			close(openTempFileForWriting);
 		}
+		else // if program can't find any word, we'll delete temp file
+			unlink(tempfileName);
 
 
 		// Close reading file
-		close(openFileForReading);
+		close(openTempFileForWriting);
 	}
 
 	{ // Write pipe
@@ -250,6 +257,15 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 	return 0;
 }
 
+//
+//   FUNCTION:	writingLog
+//
+//   PURPOSE:	Parent write all result 
+//
+//   COMMENTS(TR):
+//
+//		main() fonksiyondaki parent pipe ve fifolardan gelen herşeyi log file yazar
+//
 void writingLog(const char* text)
 {
 	int openFileForWriting;
