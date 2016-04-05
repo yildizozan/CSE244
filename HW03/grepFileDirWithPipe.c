@@ -119,13 +119,10 @@ void openDirectory(const char *path, const char *text)
 						close(fileDescription[1]);
 						read(fileDescription[0], &readText, sizeof(readText) + 1);
 
-						//writingLog(readText);
+						writingLog(readText);
 
 						close(fileDescription[0]);
 						wait(NULL);
-
-						// Delete all temp files
-
 					}
 				} // end if else
 			} // end if
@@ -153,7 +150,7 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 	strcat(newPath, "/");
 	strcat(newPath, fileName);
 
-	/* Test */
+	// Control
 	printf("%s/%s - %d - Parent: %d\n", filePath, fileName, getpid(), getppid());
 
 	// Variables
@@ -250,9 +247,11 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 			if (read(tempFileForWriting, asd, MAX_TEXT_LENGTH) < 0)
 				perror("error");
 			
-			printf("%s\n", asd);
+			// Control
+			//printf("%s\n", asd);
 
-			//write(fileDescription, asd, strlen(asd) + 1);
+			write(fileDescription, asd, strlen(asd) + 1);
+			close(fd);
 		}
 		else
 			unlink(tempfileName);
@@ -260,8 +259,6 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 		// Close reading file
 		close(openFileForReading);
 
-		// Close result temp file
-		close(tempFileForWriting);
 	}
 
 	return 0;
@@ -332,4 +329,3 @@ void pipeReading(const int pipeFile)
 
 	return;
 }
-
