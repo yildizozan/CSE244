@@ -117,12 +117,16 @@ void openDirectory(const char *path, const char *text)
 						char readText[MAX_TEXT_LENGTH];
 
 						close(fileDescription[1]);
-						read(fileDescription[0], readText, sizeof(readText) + 1);
+						read(fileDescription[0], &readText, sizeof(readText) + 1);
 
-						writingLog(readText);
+						printf("%s\n", readText);
+						//writingLog(readText);
 
 						close(fileDescription[0]);
 						wait(NULL);
+
+						// Delete all temp files
+
 					}
 				} // end if else
 			} // end if
@@ -151,7 +155,7 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 	strcat(newPath, fileName);
 
 	/* Test */
-	printf("%s/%s - %d\n", filePath, fileName, getpid());
+	printf("%s/%s - %d - Parent: %d\n", filePath, fileName, getpid(), getppid());
 
 	// Variables
 	int currentLineNumber = 1,		// currentLineNumber is line counter
@@ -167,7 +171,7 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 	// Opening temp file for result
 	char tempfileName[MAX_TEXT_LENGTH];
 	snprintf(tempfileName, sizeof(tempfileName), "%d.txt", getpid());
-	int openTempFileForWriting = open(tempfileName, O_CREAT | O_WRONLY | O_APPEND);
+	int tempFileForWriting = open(tempfileName, O_CREAT | O_RDWR | O_APPEND);
 
 		// Create result header text for temp file
 		char tempResultText[MAX_TEXT_LENGTH];
@@ -179,7 +183,7 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 			searchInFileText, 
 			fileName
 		);
-		write(openTempFileForWriting, tempResultText, strlen(tempResultText));
+		write(tempFileForWriting, tempResultText, strlen(tempResultText));
 
 
 	// We're starting to read file
@@ -221,7 +225,7 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 						);
 
 					// We're writing result string in temp file
-					write(openTempFileForWriting, tempResultText, strlen(tempResultText));
+					write(tempFileForWriting, tempResultText, strlen(tempResultText));
 
 					// Must be zero
 					countLetter = 0;
@@ -234,24 +238,30 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 			}
 		} // end while
 
- 		// Close temp file
+ 		// Add reagent temp file and send all result at the temp file to pipe
 		if (0 < totalWord)
 		{
 			char* reagent = "---------------------------------------------\n";
-			write(openTempFileForWriting, reagent, strlen(reagent));
-			close(openTempFileForWriting);
+			write(tempFileForWriting, reagent, strlen(reagent));
+
+			// Send pipe all result
+			char asd[255];
+			int das;
+			if ((das = read(tempFileForWriting, asd, 255)) < 0)
+				perror("read");
+
+			printf("read text : \n%s\n----------------\n", asd);
+			
+			//write(fileDescription, asd, strlen(asd) + 1);
 		}
-		else // if program can't find any word, we'll delete temp file
+		else
 			unlink(tempfileName);
 
-
 		// Close reading file
-		close(openTempFileForWriting);
-	}
+		close(openFileForReading);
 
-	{ // Write pipe
-
-		//write(fileDescription, resultText, strlen(resultText) + 1);
+		// Close result temp file
+		close(tempFileForWriting);
 	}
 
 	return 0;
@@ -268,14 +278,14 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 //
 void writingLog(const char* text)
 {
-	int openFileForWriting;
+	int logFileForWriting;
 	
-	if ((openFileForWriting = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND)) < 0)
+	if ((logFileForWriting = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND)) < 0)
 		perror("open");
 
-	write(openFileForWriting, text, strlen(text));
+	write(logFileForWriting, text, strlen(text));
 
-	close(openFileForWriting);
+	close(logFileForWriting);
 }
 
 //
