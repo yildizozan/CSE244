@@ -1,3 +1,16 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
+/* 
+ * File:   main.cpp
+ * Author: hnoyt
+ *
+ * Created on April 5, 2016, 11:03 PM
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -10,7 +23,7 @@
 
 #define BUFFER_SIZE 1
 #define MAX_PATH 256
-#define MAX_TEXT_LENGTH 256
+#define MAX_TEXT_LENGTH 2048
 
 void openDirectory(const char *, const char *);
 int searchInFile(const char *, const char*, const char *, int);
@@ -81,7 +94,6 @@ void openDirectory(const char *path, const char *text)
 
 				// openDirectory new path
 				openDirectory(newFolderPath, text);
-
 			}
 			
 
@@ -113,16 +125,16 @@ void openDirectory(const char *path, const char *text)
 					}
 					else // Parent process
 					{
-
+						wait(NULL);
 						char readText[MAX_TEXT_LENGTH];
 
 						close(fileDescription[1]);
-						read(fileDescription[0], readText, sizeof(readText) + 1);
-
-						writingLog(readText);
+						read(fileDescription[0], &readText, sizeof(readText));
 
 						close(fileDescription[0]);
-						wait(NULL);
+						writingLog(readText);
+						
+
 					}
 				} // end if else
 			} // end if
@@ -137,12 +149,17 @@ void openDirectory(const char *path, const char *text)
 //
 //   COMMENTS(TR):
 //
-//		Aldığı path argümanı ile ilgili dosyayı READONLY modunda açar.
+//		Aldığı filePath ve fileName 
+//		Aldığı filePath argümanı ile ilgili dosyayı READONLY modunda açar.
 //		Daha sonra açmış olduğu bu dosyadan BUFFER_SIZE miktarı kadar okur.
 //		BUFFER_SIZE miktarı default olarak 1 olarak ayarladım.
 //		Her bir byte pipe dosyasına yazılır ve dosya kapatılır.
 //
-int searchInFile(const char* filePath, const char* fileName, const char *searchInFileText, int fileDescription)
+int searchInFile(
+	const char* filePath, 
+	const char* fileName, 
+	const char *searchInFileText, 
+	int fileDescription)
 {
 	// Create new folder path
 	char newPath[MAX_PATH];
@@ -150,8 +167,8 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 	strcat(newPath, "/");
 	strcat(newPath, fileName);
 
-	/* Test */
-	printf("%s/%s - %d\n", filePath, fileName, getpid());
+	// Control
+	printf("%s/%s - %d - Parent: %d\n", filePath, fileName, getpid(), getppid());
 
 	// Variables
 	int currentLineNumber = 1,		// currentLineNumber is line counter
@@ -167,7 +184,7 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 	// Opening temp file for result
 	char tempfileName[MAX_TEXT_LENGTH];
 	snprintf(tempfileName, sizeof(tempfileName), "%d.txt", getpid());
-	int openTempFileForWriting = open(tempfileName, O_CREAT | O_WRONLY | O_APPEND);
+	int tempFileForWriting = open(tempfileName, O_CREAT | O_WRONLY | O_APPEND);
 
 		// Create result header text for temp file
 		char tempResultText[MAX_TEXT_LENGTH];
@@ -179,7 +196,7 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 			searchInFileText, 
 			fileName
 		);
-		write(openTempFileForWriting, tempResultText, strlen(tempResultText));
+		write(tempFileForWriting, tempResultText, strlen(tempResultText));
 
 
 	// We're starting to read file
@@ -215,13 +232,13 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 					snprintf(
 						tempResultText, 
 						sizeof(tempResultText),
-						"\t%d line, %d column found.\n",
+						"\t%d line, %zu column found.\n",
 							currentLineNumber, 
 							curentColumnNumber - strlen(searchInFileText)
 						);
 
 					// We're writing result string in temp file
-					write(openTempFileForWriting, tempResultText, strlen(tempResultText));
+					write(tempFileForWriting, tempResultText, strlen(tempResultText));
 
 					// Must be zero
 					countLetter = 0;
@@ -234,24 +251,30 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 			}
 		} // end while
 
- 		// Close temp file
-		if (0 < totalWord)
-		{
-			char* reagent = "---------------------------------------------\n";
-			write(openTempFileForWriting, reagent, strlen(reagent));
-			close(openTempFileForWriting);
-		}
-		else // if program can't find any word, we'll delete temp file
+		// Send pipe all results
+		char reagent[] = "----------\n";
+		write(tempFileForWriting, reagent, strlen(reagent));
+		close(tempFileForWriting);
+
+		// Send pipe all result
+		char asd[MAX_TEXT_LENGTH];
+		int fd = open(tempfileName, O_RDONLY);
+		if (read(tempFileForWriting, asd, MAX_TEXT_LENGTH) < 0)
+			perror("error");
+		
+		// Control
+		//printf("%s\n", asd);
+
+		write(fileDescription, asd, strlen(asd) + 1);
+		close(fd);
+
+ 		// If no results, delete temp file
+		if (totalWord == 0)
 			unlink(tempfileName);
 
-
 		// Close reading file
-		close(openTempFileForWriting);
-	}
+		close(openFileForReading);
 
-	{ // Write pipe
-
-		//write(fileDescription, resultText, strlen(resultText) + 1);
 	}
 
 	return 0;
@@ -268,14 +291,14 @@ int searchInFile(const char* filePath, const char* fileName, const char *searchI
 //
 void writingLog(const char* text)
 {
-	int openFileForWriting;
+	int logFileForWriting;
 	
-	if ((openFileForWriting = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND)) < 0)
+	if ((logFileForWriting = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND)) < 0)
 		perror("open");
 
-	write(openFileForWriting, text, strlen(text));
+	write(logFileForWriting, text, strlen(text));
 
-	close(openFileForWriting);
+	close(logFileForWriting);
 }
 
 //
@@ -308,18 +331,7 @@ void pipeWriting(const int pipeFile, const char *text)
 //
 void pipeReading(const int pipeFile)
 {
-	char currentChar;
-	int openFileForWriting;
-
-	if ((openFileForWriting = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND)) < 0)
-		perror("open");
-
-	while (read(pipeFile, &currentChar, BUFFER_SIZE) > 0) // Pipe dosyasından okuma yapacak
-		if (write(openFileForWriting, &currentChar, BUFFER_SIZE) < 0)
-			perror("write");
-
-	close(openFileForWriting);
+	//read(pipeFile);
 
 	return;
 }
-
