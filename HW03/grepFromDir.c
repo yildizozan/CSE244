@@ -1,10 +1,10 @@
 /* 
- * File:   Source.c
- * Author: Ozan Yıldız
- *
- * Created on April 2, 2016, 11:03 PM
- */
-
+* File:   Source.c
+* Author: Ozan Yıldız
+*
+* Created on April 2, 2016, 11:03 PM
+*/
+ 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -17,6 +17,9 @@
 
 // Buffers
 #define BUFFER_SIZE 1
+#define FIFO_BUFFER_SIZE 1024
+
+// Text lenght
 #define MAX_PATH 256
 #define MAX_TEXT_LENGTH 2048
 
@@ -64,6 +67,17 @@ int main(int argc, char const *argv[])
 //
 void openDirectory(const char *path, const char *text)
 {
+	// Pid for childprocess
+	pid_t childPid;
+
+	// Pipe files description
+	int fileDescription[2];
+
+	// Fifo variables
+	int fifoDescripton;
+	char fifoName[FIFO_BUFFER_SIZE];
+	snprintf(fifoName, sizeof(fifoName), "%d", (int)getppid());
+
 	// Folder variables
 	DIR *directory;
 	struct dirent *entry;
@@ -76,42 +90,64 @@ void openDirectory(const char *path, const char *text)
 	else
 	{
 		while ((entry = readdir(directory)) != NULL)
-		{
+		{/*
 
-			if (strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0)
-				continue;
-
-			
-			// Control: Is this folder?
-			if (entry->d_type == DT_DIR)
+			if (mkfifo(fifoName, READ_ONLY) < 0)
 			{
-				// Create new folder path
-				char newFolderPath[MAX_PATH];
-				strcpy(newFolderPath, path);
-				strcat(newFolderPath, "/");
-				strcat(newFolderPath, entry->d_name);
-
-				// openDirectory new path
-				openDirectory(newFolderPath, text);
+				perror("mkfifo");
+				exit(EXIT_FAILURE);
 			}
-			
-
-			// Control: Is this file?
-			if (entry->d_type == DT_REG)
+*/
+			// Pipe
+			if ((pipe(fileDescription) < 0))
 			{
-				// Pipe and fork variable
-				int fileDescription[2];
-				pid_t pid;
+				perror("pipe");
+				perror("fork");
+				exit(EXIT_FAILURE);
+			}
 
-				if ((pipe(fileDescription) < 0) || ((pid = fork()) < 0))
+			// Fork
+			if ((childPid = fork()) < 0)
+			{
+				perror("fork");
+				exit(EXIT_FAILURE);
+			}
+			else
+			{
+				// Eğer child process oluştuysa parent buraya gelecek
+				// 
+				if (childPid)
 				{
-					perror("pipe");
-					perror("fork");
-					exit(EXIT_FAILURE);
+					wait(NULL);
+					char readText[MAX_TEXT_LENGTH];
+
+					close(fileDescription[1]);
+					read(fileDescription[0], &readText, sizeof(readText));
+
+					close(fileDescription[0]);
+					writingLog(readText);
+					exit(EXIT_SUCCESS);
 				}
-				else
+				else // Child Process
 				{
-					if (pid == 0) // Child proces
+					if (strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0)
+						continue;
+
+					// Control: Is this folder?
+					if (entry->d_type == DT_DIR)
+					{
+						// Create new folder path
+						char newFolderPath[MAX_PATH];
+						strcpy(newFolderPath, path);
+						strcat(newFolderPath, "/");
+						strcat(newFolderPath, entry->d_name);
+
+						// openDirectory new path
+						openDirectory(newFolderPath, text);
+						exit(EXIT_SUCCESS);
+					}
+								// Control: Is this file?
+					else if (entry->d_type == DT_REG)
 					{
 						close(fileDescription[0]);
 
@@ -120,23 +156,17 @@ void openDirectory(const char *path, const char *text)
 
 						close(fileDescription[1]);
 						exit(EXIT_SUCCESS);
-					}
-					else // Parent process
-					{
-						wait(NULL);
-						char readText[MAX_TEXT_LENGTH];
 
-						close(fileDescription[1]);
-						read(fileDescription[0], &readText, sizeof(readText));
-
-						close(fileDescription[0]);
-						writingLog(readText);
-						
 					}
-				} // end if else
-			} // end if
+
+				}
+
+			} // end else
+
 		} // end while
+
 	} // end if else
+
 } // end function
 
 //
@@ -306,8 +336,8 @@ void writingLog(const char* text)
 		-
 
 	Fifo
-		- Fifo için child yazarken parent pid değerine göre yazar
-		- Parent ise okurken kendi pid değerine göre okur.
+		- Fifo için child yazarken parent childPid değerine göre yazar
+		- Parent ise okurken kendi childPid değerine göre okur.
 
 
 */
