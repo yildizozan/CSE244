@@ -1,14 +1,8 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 /* 
- * File:   main.cpp
- * Author: hnoyt
+ * File:   Source.c
+ * Author: Ozan Yıldız
  *
- * Created on April 5, 2016, 11:03 PM
+ * Created on April 2, 2016, 11:03 PM
  */
 
 #include <stdio.h>
@@ -299,39 +293,4 @@ void writingLog(const char* text)
 	write(logFileForWriting, text, strlen(text));
 
 	close(logFileForWriting);
-}
-
-//
-//   FUNCTION:	pipeWriting
-//
-//   PURPOSE:	Writing with pipe
-//
-//   COMMENTS(TR):
-//
-//		Aldığı path argümanı ile ilgili dosyayı READONLY modunda açar.
-//		Daha sonra açmış olduğu bu dosyadan BUFFER_SIZE miktarı kadar okur.
-//		BUFFER_SIZE miktarı default olarak 1 olarak ayarladım.
-//		Her bir byte pipe dosyasına yazılır ve dosya kapatılır.
-//
-void pipeWriting(const int pipeFile, const char *text)
-{
-	write(pipeFile, text, strlen(text)); // Pipe dosyasına yazacak
-
-	return;
-}
-
-//
-//   FUNCTION:	pipeReading
-//
-//   PURPOSE:	Reading with pipe
-//
-//   COMMENTS(TR):
-//
-//		Dosyadan okumayı sağlar pipe ile 
-//
-void pipeReading(const int pipeFile)
-{
-	//read(pipeFile);
-
-	return;
 }
