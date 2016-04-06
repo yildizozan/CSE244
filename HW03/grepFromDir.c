@@ -15,9 +15,14 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+// Buffers
 #define BUFFER_SIZE 1
 #define MAX_PATH 256
 #define MAX_TEXT_LENGTH 2048
+
+// Files Attributes
+#define READ_ONLY (O_RDONLY) 
+#define WRITE_ONLY (O_WRONLY)
 
 void openDirectory(const char *, const char *);
 int searchInFile(const char *, const char*, const char *, int);
@@ -104,7 +109,6 @@ void openDirectory(const char *path, const char *text)
 					perror("fork");
 					exit(EXIT_FAILURE);
 				}
-
 				else
 				{
 					if (pid == 0) // Child proces
@@ -128,7 +132,6 @@ void openDirectory(const char *path, const char *text)
 						close(fileDescription[0]);
 						writingLog(readText);
 						
-
 					}
 				} // end if else
 			} // end if
@@ -294,3 +297,17 @@ void writingLog(const char* text)
 
 	close(logFileForWriting);
 }
+
+
+/* 
+	NOTES
+
+	Pipe
+		-
+
+	Fifo
+		- Fifo için child yazarken parent pid değerine göre yazar
+		- Parent ise okurken kendi pid değerine göre okur.
+
+
+*/
