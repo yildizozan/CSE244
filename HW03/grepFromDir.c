@@ -1,16 +1,10 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
 /* 
- * File:   main.cpp
- * Author: hnoyt
- *
- * Created on April 5, 2016, 11:03 PM
- */
-
+* File:   Source.c
+* Author: Ozan Yıldız
+*
+* Created on April 2, 2016, 11:03 PM
+*/
+ 
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -21,9 +15,17 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
+// Buffers
 #define BUFFER_SIZE 1
+#define FIFO_BUFFER_SIZE 1024
+
+// Text lenght
 #define MAX_PATH 256
 #define MAX_TEXT_LENGTH 2048
+
+// Files Attributes
+#define READ_ONLY (O_RDONLY) 
+#define WRITE_ONLY (O_WRONLY)
 
 void openDirectory(const char *, const char *);
 int searchInFile(const char *, const char*, const char *, int);
@@ -65,6 +67,17 @@ int main(int argc, char const *argv[])
 //
 void openDirectory(const char *path, const char *text)
 {
+	// Pid for childprocess
+	pid_t childPid;
+
+	// Pipe files description
+	int fileDescription[2];
+
+	// Fifo variables
+	int fifoDescripton;
+	char fifoName[FIFO_BUFFER_SIZE];
+	snprintf(fifoName, sizeof(fifoName), "%d", (int)getppid());
+
 	// Folder variables
 	DIR *directory;
 	struct dirent *entry;
@@ -77,43 +90,64 @@ void openDirectory(const char *path, const char *text)
 	else
 	{
 		while ((entry = readdir(directory)) != NULL)
-		{
+		{/*
 
-			if (strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0)
-				continue;
-
-			
-			// Control: Is this folder?
-			if (entry->d_type == DT_DIR)
+			if (mkfifo(fifoName, READ_ONLY) < 0)
 			{
-				// Create new folder path
-				char newFolderPath[MAX_PATH];
-				strcpy(newFolderPath, path);
-				strcat(newFolderPath, "/");
-				strcat(newFolderPath, entry->d_name);
-
-				// openDirectory new path
-				openDirectory(newFolderPath, text);
+				perror("mkfifo");
+				exit(EXIT_FAILURE);
 			}
-			
-
-			// Control: Is this file?
-			if (entry->d_type == DT_REG)
+*/
+			// Pipe
+			if ((pipe(fileDescription) < 0))
 			{
-				// Pipe and fork variable
-				int fileDescription[2];
-				pid_t pid;
+				perror("pipe");
+				perror("fork");
+				exit(EXIT_FAILURE);
+			}
 
-				if ((pipe(fileDescription) < 0) || ((pid = fork()) < 0))
+			// Fork
+			if ((childPid = fork()) < 0)
+			{
+				perror("fork");
+				exit(EXIT_FAILURE);
+			}
+			else
+			{
+				// Eğer child process oluştuysa parent buraya gelecek
+				// 
+				if (childPid)
 				{
-					perror("pipe");
-					perror("fork");
-					exit(EXIT_FAILURE);
+					wait(NULL);
+					char readText[MAX_TEXT_LENGTH];
+
+					close(fileDescription[1]);
+					read(fileDescription[0], &readText, sizeof(readText));
+
+					close(fileDescription[0]);
+					writingLog(readText);
+					exit(EXIT_SUCCESS);
 				}
-
-				else
+				else // Child Process
 				{
-					if (pid == 0) // Child proces
+					if (strcmp(entry->d_name, "..") == 0 || strcmp(entry->d_name, ".") == 0)
+						continue;
+
+					// Control: Is this folder?
+					if (entry->d_type == DT_DIR)
+					{
+						// Create new folder path
+						char newFolderPath[MAX_PATH];
+						strcpy(newFolderPath, path);
+						strcat(newFolderPath, "/");
+						strcat(newFolderPath, entry->d_name);
+
+						// openDirectory new path
+						openDirectory(newFolderPath, text);
+						exit(EXIT_SUCCESS);
+					}
+								// Control: Is this file?
+					else if (entry->d_type == DT_REG)
 					{
 						close(fileDescription[0]);
 
@@ -122,24 +156,17 @@ void openDirectory(const char *path, const char *text)
 
 						close(fileDescription[1]);
 						exit(EXIT_SUCCESS);
-					}
-					else // Parent process
-					{
-						wait(NULL);
-						char readText[MAX_TEXT_LENGTH];
-
-						close(fileDescription[1]);
-						read(fileDescription[0], &readText, sizeof(readText));
-
-						close(fileDescription[0]);
-						writingLog(readText);
-						
 
 					}
-				} // end if else
-			} // end if
+
+				}
+
+			} // end else
+
 		} // end while
+
 	} // end if else
+
 } // end function
 
 //
@@ -301,37 +328,16 @@ void writingLog(const char* text)
 	close(logFileForWriting);
 }
 
-//
-//   FUNCTION:	pipeWriting
-//
-//   PURPOSE:	Writing with pipe
-//
-//   COMMENTS(TR):
-//
-//		Aldığı path argümanı ile ilgili dosyayı READONLY modunda açar.
-//		Daha sonra açmış olduğu bu dosyadan BUFFER_SIZE miktarı kadar okur.
-//		BUFFER_SIZE miktarı default olarak 1 olarak ayarladım.
-//		Her bir byte pipe dosyasına yazılır ve dosya kapatılır.
-//
-void pipeWriting(const int pipeFile, const char *text)
-{
-	write(pipeFile, text, strlen(text)); // Pipe dosyasına yazacak
 
-	return;
-}
+/* 
+	NOTES
 
-//
-//   FUNCTION:	pipeReading
-//
-//   PURPOSE:	Reading with pipe
-//
-//   COMMENTS(TR):
-//
-//		Dosyadan okumayı sağlar pipe ile 
-//
-void pipeReading(const int pipeFile)
-{
-	//read(pipeFile);
+	Pipe
+		-
 
-	return;
-}
+	Fifo
+		- Fifo için child yazarken parent childPid değerine göre yazar
+		- Parent ise okurken kendi childPid değerine göre okur.
+
+
+*/

@@ -1,2 +1,2 @@
 all:
-	gcc grepFileDirWithPipe.c -o grepFileDirWithPipe
+	gcc grepFromDir.c -o grepFromDir
