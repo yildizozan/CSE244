@@ -1,3 +1,16 @@
+/*
+ * To change this license header, choose License Headers in Project Properties.
+ * To change this template file, choose Tools | Templates
+ * and open the template in the editor.
+ */
+
+/* 
+ * File:   main.cpp
+ * Author: hnoyt
+ *
+ * Created on April 5, 2016, 11:03 PM
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -219,7 +232,7 @@ int searchInFile(
 					snprintf(
 						tempResultText, 
 						sizeof(tempResultText),
-						"\t%d line, %d column found.\n",
+						"\t%d line, %zu column found.\n",
 							currentLineNumber, 
 							curentColumnNumber - strlen(searchInFileText)
 						);
@@ -239,7 +252,7 @@ int searchInFile(
 		} // end while
 
 		// Send pipe all results
-		char* reagent = "---------------------------------------------\n";
+		char reagent[] = "----------\n";
 		write(tempFileForWriting, reagent, strlen(reagent));
 		close(tempFileForWriting);
 
