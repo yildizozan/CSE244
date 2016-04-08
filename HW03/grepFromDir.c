@@ -16,7 +16,7 @@
 
 void fileCheck(char *, char *);
 
-int searching(char *, char *, char *, int);
+int searchInFile(const char *, const char *, const char *, const int);
 
 int main(int argc, char *argv[])
 {
@@ -75,11 +75,12 @@ void fileCheck(char *currentPath, char *searchText)
 				waitpid(childPid, &childStatus, 0);
 
 				// Pipe for reading
+				int status;
 				char childName[BUFFER_MINI];
 				close(pipeFileDescription[1]);
-				//if (0 < (read(pipeFileDescription[0], childName, sizeof(childName))))
-				int status = read(pipeFileDescription[0], childName, sizeof(childName));
-					printf("%s - %d\n", childName, status);
+				if (0 < (status = read(pipeFileDescription[0], childName, sizeof(childName))))
+				//status = read(pipeFileDescription[0], childName, sizeof(childName));
+					printf("%s%d\n", childName, status);
 
 				close(pipeFileDescription[0]);
 			}
@@ -103,16 +104,16 @@ void fileCheck(char *currentPath, char *searchText)
 				else if (ent->d_type == DT_REG) // Is this file
 				{
 					// Child name for pipe
-					char childName[SIZE_256];
+					char childName[BUFFER_MINI];
 					snprintf(childName, sizeof(childName), "%s - Childpid:%d", ent->d_name, (int)getpid());
 					
-					//Pipe
+					// Pipe
 					close(pipeFileDescription[0]);
-					write(pipeFileDescription[1], childName, sizeof(childName));
-					close(pipeFileDescription[1]);
 
 					// Searching new path
-					searching(currentPath, ent->d_name, searchText, pipeFileDescription[1]);
+					searchInFile(currentPath, ent->d_name, searchText, pipeFileDescription[1]);
+
+					close(pipeFileDescription[1]);
 
 					// Successful
 					exit(EXIT_SUCCESS);
@@ -128,14 +129,8 @@ void fileCheck(char *currentPath, char *searchText)
 
 }
 
-int searching(char *filePath, char *fileName, char *searchingWord, int pipeFileDescription)
+int searchInFile(const char *filePath, const char *fileName, const char *searchingWord, const int pipeFileDescription)
 {
-	// Create file path
-	char newPath[SIZE_256];
-	strcpy(newPath, filePath);
-	strcat(newPath, "/");
-	strcat(newPath, fileName);
-
 	// Variables
 	int currentLineNumber = 1,		// currentLineNumber is line counter
 		curentColumnNumber = 1,		// curentColumnNumber is column counter
@@ -144,13 +139,33 @@ int searching(char *filePath, char *fileName, char *searchingWord, int pipeFileD
 
 	char currentChar;
 
-	// Openin temp file for result
+	// Temp file variables
+	char tempFileText[SIZE_256];
 
+	// Create file path
+	char newPath[SIZE_256];
+	strcpy(newPath, filePath);
+	strcat(newPath, "/");
+	strcat(newPath, fileName);
+
+
+		// Openin temp file for result
+		snprintf(tempFileText, sizeof(tempFileText), "%d.txt", getpid());
+		int tempFileHandle = open(tempFileText, O_CREAT | O_WRONLY | O_APPEND);
+
+		// Write header for result temp file
+		snprintf(
+			tempFileText,
+			sizeof(tempFileText),
+			"%s\n%s -> %s\n",
+			filePath, fileName, searchingWord
+		);
+		write(tempFileHandle, tempFileText, strlen(tempFileText));
 
 	// Opening file for searching (READ ONLY MODE)
-	int openFileForReading = open(newPath, O_RDONLY);
+	int openFileForReadingHandle = open(newPath, O_RDONLY);
 
-	if (openFileForReading == -1)
+	if (openFileForReadingHandle == -1)
 	{
 		printf("Error for opening file.\nExiting..\n");
 		return 1;
@@ -159,7 +174,7 @@ int searching(char *filePath, char *fileName, char *searchingWord, int pipeFileD
 	{
 		int countArgv = 0;
 
-		while (read(openFileForReading, &currentChar, BUFFER_STREAM) > 0)
+		while (read(openFileForReadingHandle, &currentChar, BUFFER_STREAM) > 0)
 		{
 			if (currentChar != '\0') 
 				++curentColumnNumber;
@@ -179,15 +194,18 @@ int searching(char *filePath, char *fileName, char *searchingWord, int pipeFileD
 				if (countLetter == strlen(searchingWord))
 				{
 					++totalWord;
-
-					// Write a file
-					FILE *openFileForWriting = fopen("gfD.log", "a+");
-					fprintf(openFileForWriting,
-						"%s -> %d line and %zu column found.\n",
-						fileName,
+					
+					// Results are writing to temp file.
+					snprintf(tempFileText,
+						sizeof(tempFileText),
+						"\t%d line, %d column found.\n",
 						currentLineNumber,
-						curentColumnNumber - strlen(searchingWord));
-					fclose(openFileForWriting);
+						curentColumnNumber - strlen(searchingWord)
+					);
+					write(tempFileHandle, tempFileText, strlen(tempFileText));
+
+					// Writing pipe
+					write(pipeFileDescription, tempFileText, strlen(tempFileText));
 
 					// Must be zero
 					countLetter = 0;
@@ -201,9 +219,24 @@ int searching(char *filePath, char *fileName, char *searchingWord, int pipeFileD
 
 		}
 
+		// End of file
+		snprintf(tempFileText, sizeof(tempFileText), "-----------------------------------\n");
+			write(tempFileHandle, tempFileText, strlen(tempFileText));
+
 		// Close reading file
-		close(openFileForReading);
+		close(openFileForReadingHandle);
+
+		// If find to ant word, all results write pipe or unlink file
+		if (totalWord == 0)
+		{
+			unlink(newPath);
+		}
+		else
+		{
+			//
+		}
 	}
+
 	return 0;
 }
 
