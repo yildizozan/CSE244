@@ -1,212 +1,171 @@
-/*
- * To change this license header, choose License Headers in Project Properties.
- * To change this template file, choose Tools | Templates
- * and open the template in the editor.
- */
-
-/* 
- * File:   main.cpp
- * Author: hnoyt
- *
- * Created on April 5, 2016, 11:03 PM
- */
-
 #include <stdio.h>
 #include <stdlib.h>
+#include <dirent.h>
 #include <unistd.h>
+#include <sys/wait.h>
+#include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
-#include <dirent.h>
-#include <string.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 
 // Buffers
-#define BUFFER_MINI 1
-#define BUFFER_STANDART 2048
+#define BUFFER_STREAM 1
+#define BUFFER_MINI 1024
 
-#define MAX_PATH 256
+// Path size
+#define SIZE_256 256
 
-void openDirectory(const char *, const char *);
-int searchInFile(const char *, const char*, const char *, int);
+void fileCheck(char *, char *);
 
-void writingLog(const char*);
+int searchInFile(const char *, const char *, const char *, const int);
 
-// Pipe functions
-void pipeWriting(const int, const char *);
-void pipeReading(const int);
-
-int main(int argc, char const *argv[])
+int main(int argc, char *argv[])
 {
 	/*
+	// Using:
 	if (argc != 3)
 	{
-	printf("Usage: ./grepFromDir [directory] [searchInFile text}\n");
-	exit(EXIT_FAILURE);
+		printf("Using: ./grD [directory] text\n");
+		return 1;
 	}
 	*/
 
-	openDirectory(argv[1], argv[2]);
+	fileCheck(argv[1], argv[2]);
 
 	return 0;
 }
 
-//
-//   FUNCTION:	openDirectory
-//
-//   PURPOSE:	Checks the files.
-//
-//   COMMENTS(TR):
-//
-//		Amaç dosyları kontrol etmek ve fork yapmaktır.
-//		Her fork için pipe yapılır.
-//		Önce fork işlemi yapılır daha sonra ise child process
-//		dosya mı klasör mü olduğuna karar verir. Eğer dosya ise arama yapar ancak
-//		folder ise bu sefer recursive yaparak fonksiyonu tekrar çağırır kendi alt processlerine
-//		yeni path gönderir. İşlem aynı şekilde tekrarlanır.
-//
-void openDirectory(const char *path, const char *text)
+void fileCheck(char *currentPath, char *searchText)
 {
 	// Folder variables
-	DIR *directory;
-	struct dirent *entry;
+	DIR *dir;
+	struct dirent *ent;
 
 	// Fork variable
-	pid_t pid;
+	pid_t childPid;
 
 	// Pipe variable
-	int fileDescription[2];
+	int pipeFileDescription[2];
 
-	if ((directory = opendir(path)) == NULL)
+	// Try to open folder
+	if ((dir = opendir(currentPath)) == NULL)
 	{
 		perror("opendir");
 		exit(EXIT_FAILURE);
 	}
-	else
+	else // Successfull open dir
 	{
-		while ((entry = readdir(directory)) != NULL)
+		// Reading directioary
+		while ((ent = readdir(dir)) != NULL)
 		{
-
-			// First pipe arter fork
-			if ((pipe(fileDescription) < 0) || ((pid = fork()) < 0))
+			// NO CWD and upper
+			if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+				continue;
+			
+			// Child process can't be created
+			if (pipe(pipeFileDescription) < 0 || (childPid = fork()) < 0)
 			{
-				perror("pipe");
-				perror("fork");
+				perror("pipe\n");
+				perror("fork\n");
 				exit(EXIT_FAILURE);
 			}
-			else if (pid) // Parent process
+			else if (childPid) // Parent process
 			{
-				// Waiting child process
-				wait(NULL);
-				char readText[BUFFER_STANDART];
+				// We'll wait all chil process
+				int childStatus; 
+				waitpid(childPid, &childStatus, 0);
 
-				close(fileDescription[1]);
-				read(fileDescription[0], &readText, sizeof(readText));
+				// Pipe for reading
+				int status;
+				char childName[BUFFER_MINI];
+				close(pipeFileDescription[1]);
+				if (0 < (status = read(pipeFileDescription[0], childName, sizeof(childName))))
+				//status = read(pipeFileDescription[0], childName, sizeof(childName));
+					printf("%s%d\n", childName, status);
 
-				close(fileDescription[0]);
-				writingLog(readText);
+				close(pipeFileDescription[0]);
 			}
-			else // Child process
+			else  // Child process
 			{
-
-				// NO CWD and upper
-				if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
-					exit(EXIT_FAILURE);
-
-				// Control: Is this folder?
-				if (entry->d_type == DT_DIR)
+				// Control for folder
+				if (ent->d_type == DT_DIR) // Is this folder?
 				{
-					// Create new folder path
-					char newFolderPath[MAX_PATH];
-					strcpy(newFolderPath, path);
-					strcat(newFolderPath, "/");
-					strcat(newFolderPath, entry->d_name);
+					// Create new path
+					char newPath[SIZE_256];
+					strcpy(newPath, currentPath);
+					strcat(newPath, "/");
+					strcat(newPath, ent->d_name);
 
-					// openDirectory new path
-					openDirectory(newFolderPath, text);
+					// Filecheck new path
+					fileCheck(newPath, searchText);
+
+					// Successful
+					exit(EXIT_SUCCESS);
+				}
+				else if (ent->d_type == DT_REG) // Is this file
+				{
+					// Child name for pipe
+					char childName[BUFFER_MINI];
+					snprintf(childName, sizeof(childName), "%s - Childpid:%d", ent->d_name, (int)getpid());
+					
+					// Pipe
+					close(pipeFileDescription[0]);
+
+					// Searching new path
+					searchInFile(currentPath, ent->d_name, searchText, pipeFileDescription[1]);
+
+					close(pipeFileDescription[1]);
+
+					// Successful
 					exit(EXIT_SUCCESS);
 				}
 
-
-				// Control: Is this file?
-				else if (entry->d_type == DT_REG)
-				{
-					// Pipe and fork variable
-					close(fileDescription[0]);
-
-					// We search text in file
-					searchInFile(path, entry->d_name, text, fileDescription[1]);
-
-					close(fileDescription[1]);
-					exit(EXIT_SUCCESS);
-				}
-			}
+			} // end else
 
 		} // end while
 
-	} // end if else
+		closedir(dir);
 
-} // end function
+	} // end else
 
-//
-//   FUNCTION:	searchInFile
-//
-//   PURPOSE:	Search file and send with pipe
-//
-//   COMMENTS(TR):
-//
-//		Aldığı filePath ve fileName 
-//		Aldığı filePath argümanı ile ilgili dosyayı READONLY modunda açar.
-//		Daha sonra açmış olduğu bu dosyadan BUFFER_MINI miktarı kadar okur.
-//		BUFFER_MINI miktarı default olarak 1 olarak ayarladım.
-//		Her bir byte pipe dosyasına yazılır ve dosya kapatılır.
-//
-int searchInFile(
-	const char* filePath, 
-	const char* fileName, 
-	const char *searchInFileText, 
-	int fileDescription)
+}
+
+int searchInFile(const char *filePath, const char *fileName, const char *searchingWord, const int pipeFileDescription)
 {
-	// Create new folder path
-	char newPath[MAX_PATH];
-	strcpy(newPath, filePath);
-	strcat(newPath, "/");
-	strcat(newPath, fileName);
-
-	// Control
-	printf("%s/%s - %d - Parent: %d\n", filePath, fileName, getpid(), getppid());
-
 	// Variables
 	int currentLineNumber = 1,		// currentLineNumber is line counter
 		curentColumnNumber = 1,		// curentColumnNumber is column counter
 		countLetter = 0,			// countLetter need to while loop
-		totalWord = 0;				// totalWord find searchInFile text in the file
+		totalWord = 0;				// totalWord find searching text in the file
 
 	char currentChar;
 
-	// Opening file (READ ONLY MODE)
-	int openFileForReading = open(newPath, O_RDONLY);
+	// Temp file variables
+	char tempFileText[SIZE_256];
 
-	// Opening temp file for result
-	char tempfileName[BUFFER_STANDART];
-	snprintf(tempfileName, sizeof(tempfileName), "%d.txt", getpid());
-	int tempFileForWriting = open(tempfileName, O_CREAT | O_WRONLY | O_APPEND);
+	// Create file path
+	char newPath[SIZE_256];
+	strcpy(newPath, filePath);
+	strcat(newPath, "/");
+	strcat(newPath, fileName);
 
-		// Create result header text for temp file
-		char tempResultText[BUFFER_STANDART];
+
+		// Openin temp file for result
+		snprintf(tempFileText, sizeof(tempFileText), "%d.txt", getpid());
+		int tempFileHandle = open(tempFileText, O_CREAT | O_WRONLY | O_APPEND);
+
+		// Write header for result temp file
 		snprintf(
-		tempResultText, 
-		sizeof(tempResultText),
-		"Path: %s\n%s -> %s file\n",
-			filePath, 
-			searchInFileText, 
-			fileName
+			tempFileText,
+			sizeof(tempFileText),
+			"%s\n%s -> %s\n",
+			filePath, fileName, searchingWord
 		);
-		write(tempFileForWriting, tempResultText, strlen(tempResultText));
+		write(tempFileHandle, tempFileText, strlen(tempFileText));
 
+	// Opening file for searching (READ ONLY MODE)
+	int openFileForReadingHandle = open(newPath, O_RDONLY);
 
-	// We're starting to read file
-	if (openFileForReading == -1)
+	if (openFileForReadingHandle == -1)
 	{
 		printf("Error for opening file.\nExiting..\n");
 		return 1;
@@ -215,9 +174,11 @@ int searchInFile(
 	{
 		int countArgv = 0;
 
-		while (read(openFileForReading, &currentChar, BUFFER_MINI) > 0)
+		while (read(openFileForReadingHandle, &currentChar, BUFFER_STREAM) > 0)
 		{
-			if (currentChar != '\0') ++curentColumnNumber;
+			if (currentChar != '\0') 
+				++curentColumnNumber;
+
 			if (currentChar == '\n')
 			{
 				++currentLineNumber;
@@ -225,26 +186,26 @@ int searchInFile(
 			}
 
 			// Control word
-			if (currentChar == searchInFileText[countArgv])
+			if (currentChar == searchingWord[countArgv])
 			{
 				++countLetter;
 				++countArgv;
 
-				if (countLetter == strlen(searchInFileText))
+				if (countLetter == strlen(searchingWord))
 				{
 					++totalWord;
+					
+					// Results are writing to temp file.
+					snprintf(tempFileText,
+						sizeof(tempFileText),
+						"\t%d line, %d column found.\n",
+						currentLineNumber,
+						curentColumnNumber - strlen(searchingWord)
+					);
+					write(tempFileHandle, tempFileText, strlen(tempFileText));
 
-					// Create result string for write temp file
-					snprintf(
-						tempResultText, 
-						sizeof(tempResultText),
-						"\t%d line, %zu column found.\n",
-							currentLineNumber, 
-							curentColumnNumber - strlen(searchInFileText)
-						);
-
-					// We're writing result string in temp file
-					write(tempFileForWriting, tempResultText, strlen(tempResultText));
+					// Writing pipe
+					write(pipeFileDescription, tempFileText, strlen(tempFileText));
 
 					// Must be zero
 					countLetter = 0;
@@ -255,89 +216,42 @@ int searchInFile(
 				countLetter = 0;
 				countArgv = 0;
 			}
-		} // end while
 
-		// Send pipe all results
-		char reagent[] = "----------\n";
-		write(tempFileForWriting, reagent, strlen(reagent));
-		close(tempFileForWriting);
+		}
 
-		// Send pipe all result
-		char asd[BUFFER_STANDART];
-		int fd = open(tempfileName, O_RDONLY);
-		if (read(tempFileForWriting, asd, BUFFER_STANDART) < 0)
-			perror("error");
-		
-		// Control
-		//printf("%s\n", asd);
-
-		write(fileDescription, asd, strlen(asd) + 1);
-		close(fd);
-
- 		// If no results, delete temp file
-		if (totalWord == 0)
-			unlink(tempfileName);
+		// End of file
+		snprintf(tempFileText, sizeof(tempFileText), "-----------------------------------\n");
+			write(tempFileHandle, tempFileText, strlen(tempFileText));
 
 		// Close reading file
-		close(openFileForReading);
+		close(openFileForReadingHandle);
 
+		// If find to ant word, all results write pipe or unlink file
+		if (totalWord == 0)
+		{
+			unlink(newPath);
+		}
+		else
+		{
+			//
+		}
 	}
 
 	return 0;
 }
 
 //
-//   FUNCTION:	writingLog
+// FUNCTION:	newPath
 //
-//   PURPOSE:	Parent write all result 
+// SUPPOSE:		Create new path for file and folder
 //
-//   COMMENTS(TR):
-//
-//		main() fonksiyondaki parent pipe ve fifolardan gelen herşeyi log file yazar
-//
-void writingLog(const char* text)
+const char *createNewPath(const char *oldPath, const char *name)
 {
-	int logFileForWriting;
-	
-	if ((logFileForWriting = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND)) < 0)
-		perror("open");
+	// Create file path
+	char *newPath;
+	strcpy(newPath, oldPath);
+	strcat(newPath, "/");
+	strcat(newPath, name);
 
-	write(logFileForWriting, text, strlen(text));
-
-	close(logFileForWriting);
-}
-
-//
-//   FUNCTION:	pipeWriting
-//
-//   PURPOSE:	Writing with pipe
-//
-//   COMMENTS(TR):
-//
-//		Aldığı path argümanı ile ilgili dosyayı READONLY modunda açar.
-//		Daha sonra açmış olduğu bu dosyadan BUFFER_MINI miktarı kadar okur.
-//		BUFFER_MINI miktarı default olarak 1 olarak ayarladım.
-//		Her bir byte pipe dosyasına yazılır ve dosya kapatılır.
-//
-void pipeWriting(const int pipeFile, const char *text)
-{
-	write(pipeFile, text, strlen(text)); // Pipe dosyasına yazacak
-
-	return;
-}
-
-//
-//   FUNCTION:	pipeReading
-//
-//   PURPOSE:	Reading with pipe
-//
-//   COMMENTS(TR):
-//
-//		Dosyadan okumayı sağlar pipe ile 
-//
-void pipeReading(const int pipeFile)
-{
-	//read(pipeFile);
-
-	return;
+	return newPath;
 }
