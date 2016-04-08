@@ -7,13 +7,16 @@
 #include <fcntl.h>
 #include <string.h>
 
-#define BUFFER_SIZE 1
+// Buffers
+#define BUFFER_STREAM 1
+#define BUFFER_MINI 1024
 
 // Path size
 #define PATH_SIZE 255
 
-void fileCheck(char *currentPath, char *searchText);
-int searching(char *filePath, char *fileName, char *searchingWord);
+void fileCheck(char *, char *);
+
+int searching(char *, char *, char *, int);
 
 int main(int argc, char *argv[])
 {
@@ -40,6 +43,9 @@ void fileCheck(char *currentPath, char *searchText)
 	// Fork variable
 	pid_t childPid;
 
+	// Pipe variable
+	int pipeFileDescription[2];
+
 	// Try to open folder
 	if ((dir = opendir(currentPath)) == NULL)
 	{
@@ -53,17 +59,37 @@ void fileCheck(char *currentPath, char *searchText)
 		{
 			
 			// Child process can't be created
-			if ((childPid = fork()) < 0)
+			if (pipe(pipeFileDescription) < 0|| (childPid = fork()) < 0)
 			{
 				perror("no child\n");
 				exit(EXIT_FAILURE);
 			}
 			else if (childPid) // Parent process
 			{
+				// We'll wait all chil process
 				wait(NULL);
+
+				// Pipe for reading
+				char childName[100];
+				close(pipeFileDescription[1]);
+				read(pipeFileDescription[0], childName, sizeof(childName));
+				printf("%s\n", childName);
+				close(pipeFileDescription[0]);
+
 			}
 			else  // Child process
 			{
+
+				// Control
+				// Child name for pipe
+				char childName[100];
+				snprintf(childName, sizeof(childName), "Child name: %d", (int)getpid());
+				
+				//Pipe
+				close(pipeFileDescription[0]);
+				write(pipeFileDescription[1], childName, sizeof(childName));
+				close(pipeFileDescription[1]);
+
 				// NO CWD and upper
 				if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
 					exit(EXIT_FAILURE);
@@ -86,7 +112,7 @@ void fileCheck(char *currentPath, char *searchText)
 				{
 
 					// Searching new path
-					searching(currentPath, ent->d_name, searchText);
+					searching(currentPath, ent->d_name, searchText, pipeFileDescription[1]);
 
 					exit(EXIT_SUCCESS);
 				}
@@ -100,7 +126,7 @@ void fileCheck(char *currentPath, char *searchText)
 
 }
 
-int searching(char *filePath, char *fileName, char *searchingWord)
+int searching(char *filePath, char *fileName, char *searchingWord, int pipeFileDescription)
 {
 	// Create file path
 	char newPath[PATH_SIZE];
@@ -116,7 +142,10 @@ int searching(char *filePath, char *fileName, char *searchingWord)
 
 	char currentChar;
 
-	// Opening file (READ ONLY MODE)
+	// Openin temp file for result
+
+
+	// Opening file for searching (READ ONLY MODE)
 	int openFileForReading = open(newPath, O_RDONLY);
 
 	if (openFileForReading == -1)
@@ -128,9 +157,11 @@ int searching(char *filePath, char *fileName, char *searchingWord)
 	{
 		int countArgv = 0;
 
-		while (read(openFileForReading, &currentChar, BUFFER_SIZE) > 0)
+		while (read(openFileForReading, &currentChar, BUFFER_STREAM) > 0)
 		{
-			if (currentChar != '\0') ++curentColumnNumber;
+			if (currentChar != '\0') 
+				++curentColumnNumber;
+
 			if (currentChar == '\n')
 			{
 				++currentLineNumber;
