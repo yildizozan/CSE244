@@ -86,8 +86,8 @@ void fileCheck(char *currentPath, char *searchText)
 				char results[BUFFER_LARGE];
 
 				close(pipeFileDescription[1]);
-				if (0 < (status = read(pipeFileDescription[0], results, strlen(results))))
-				//status = read(pipeFileDescription[0], results, strlen(results));
+				//if (0 < (status = read(pipeFileDescription[0], results, strlen(results))))
+				status = read(pipeFileDescription[0], results, strlen(results));
 					printf("%s%d\n", results, status);
 
 				writeLogFile(results);
@@ -150,6 +150,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 	char currentChar;
 
 	// Temp file variables
+	char tempFileName[SIZE_256];
 	char tempFileText[SIZE_256];
 
 	// Create file path
@@ -160,8 +161,8 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 
 
 		// Openin temp file for result
-		snprintf(tempFileText, sizeof(tempFileText), "%d.txt", getpid());
-		int tempFileHandle = open(tempFileText, O_CREAT | O_WRONLY | O_APPEND);
+		snprintf(tempFileName, sizeof(tempFileName), "%d.txt", getpid());
+		int tempFileHandle = open(tempFileName, O_CREAT | O_RDWR | O_APPEND);
 
 		// Write header for result temp file
 		snprintf(
@@ -215,7 +216,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 					write(tempFileHandle, tempFileText, strlen(tempFileText));
 
 					// Writing pipe
-					//write(pipeFileHandle, tempFileText, strlen(tempFileText));
+					write(pipeFileHandle, tempFileText, strlen(tempFileText));
 
 					// Must be zero
 					countLetter = 0;
@@ -240,7 +241,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 			close(tempFileHandle);
 
 			// After delete file
-			unlink(newPath);
+			unlink(tempFileName);
 		}
 		else
 		{
@@ -249,6 +250,9 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 
 			// Close temp file
 			close(tempFileHandle);
+
+			// After delete file
+			unlink(tempFileName);
 		}
 
 		// Close reading file
@@ -272,7 +276,6 @@ void writePipe(const int tempFileHandle, const int pipeFileHandle)
 	char tempText[BUFFER_STANDART];
 
 	read(tempFileHandle, tempText, strlen(tempText));
-	printf("%s\n", tempText);
 	write(pipeFileHandle, tempText, strlen(tempText));
 
 	return;
