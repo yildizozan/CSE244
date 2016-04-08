@@ -1,10 +1,3 @@
-/* 
- * File:   Source.c
- * Author: Ozan Yıldız
- *
- * Created on April 8, 2016, 11:03 PM
- */
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -20,7 +13,7 @@
 #define PATH_SIZE 255
 
 void fileCheck(char *currentPath, char *searchText);
-int searching(char *filePath, char *fileName, char *searchingText);
+int searching(char *filePath, char *fileName, char *searchingWord);
 
 int main(int argc, char *argv[])
 {
@@ -107,7 +100,7 @@ void fileCheck(char *currentPath, char *searchText)
 
 }
 
-int searching(char *filePath, char *fileName, char *searchingText)
+int searching(char *filePath, char *fileName, char *searchingWord)
 {
 	// Create file path
 	char newPath[PATH_SIZE];
@@ -116,7 +109,7 @@ int searching(char *filePath, char *fileName, char *searchingText)
 	strcat(newPath, fileName);
 
 	// Variables
-	int currentLineNumber = 1,	// currentLineNumber is line counter
+	int currentLineNumber = 1,		// currentLineNumber is line counter
 		curentColumnNumber = 1,		// curentColumnNumber is column counter
 		countLetter = 0,			// countLetter need to while loop
 		totalWord = 0;				// totalWord find searching text in the file
@@ -145,23 +138,22 @@ int searching(char *filePath, char *fileName, char *searchingText)
 			}
 
 			// Control word
-			if (currentChar == searchingText[countArgv])
+			if (currentChar == searchingWord[countArgv])
 			{
 				++countLetter;
 				++countArgv;
 
-				if (countLetter == strlen(searchingText))
+				if (countLetter == strlen(searchingWord))
 				{
 					++totalWord;
 
 					// Write a file
 					FILE *openFileForWriting = fopen("gfD.log", "a+");
 					fprintf(openFileForWriting,
-						"%s file => %s word, %d line and %zu column found.\n",
-						newPath,
-						searchingText,
+						"%s -> %d line and %zu column found.\n",
+						fileName,
 						currentLineNumber,
-						curentColumnNumber - strlen(searchingText));
+						curentColumnNumber - strlen(searchingWord));
 					fclose(openFileForWriting);
 
 					// Must be zero
