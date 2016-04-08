@@ -10,6 +10,9 @@
 // Buffers
 #define BUFFER_STREAM 1
 #define BUFFER_MINI 1024
+#define BUFFER_STANDART 4096
+#define BUFFER_LARGE 16384
+#define BUFFER_ULTRA 65536
 
 // Path size
 #define SIZE_256 256
@@ -17,6 +20,10 @@
 void fileCheck(char *, char *);
 
 int searchInFile(const char *, const char *, const char *, const int);
+
+void writePipe(const int, const int);
+
+void writeLogFile(const char *);
 
 int main(int argc, char *argv[])
 {
@@ -76,11 +83,14 @@ void fileCheck(char *currentPath, char *searchText)
 
 				// Pipe for reading
 				int status;
-				char childName[BUFFER_MINI];
+				char results[BUFFER_LARGE];
+
 				close(pipeFileDescription[1]);
-				if (0 < (status = read(pipeFileDescription[0], childName, sizeof(childName))))
-				//status = read(pipeFileDescription[0], childName, sizeof(childName));
-					printf("%s%d\n", childName, status);
+				if (0 < (status = read(pipeFileDescription[0], results, strlen(results))))
+				//status = read(pipeFileDescription[0], results, strlen(results));
+					printf("%s%d\n", results, status);
+
+				writeLogFile(results);
 
 				close(pipeFileDescription[0]);
 			}
@@ -129,7 +139,7 @@ void fileCheck(char *currentPath, char *searchText)
 
 }
 
-int searchInFile(const char *filePath, const char *fileName, const char *searchingWord, const int pipeFileDescription)
+int searchInFile(const char *filePath, const char *fileName, const char *searchingWord, const int pipeFileHandle)
 {
 	// Variables
 	int currentLineNumber = 1,		// currentLineNumber is line counter
@@ -194,7 +204,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 				if (countLetter == strlen(searchingWord))
 				{
 					++totalWord;
-					
+
 					// Results are writing to temp file.
 					snprintf(tempFileText,
 						sizeof(tempFileText),
@@ -205,7 +215,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 					write(tempFileHandle, tempFileText, strlen(tempFileText));
 
 					// Writing pipe
-					write(pipeFileDescription, tempFileText, strlen(tempFileText));
+					//write(pipeFileHandle, tempFileText, strlen(tempFileText));
 
 					// Must be zero
 					countLetter = 0;
@@ -223,27 +233,66 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 		snprintf(tempFileText, sizeof(tempFileText), "-----------------------------------\n");
 			write(tempFileHandle, tempFileText, strlen(tempFileText));
 
-		// Close reading file
-		close(openFileForReadingHandle);
-
 		// If find to ant word, all results write pipe or unlink file
 		if (totalWord == 0)
 		{
+			// Close temp file
+			close(tempFileHandle);
+
+			// After delete file
 			unlink(newPath);
 		}
 		else
 		{
-			//
+			// All results writing pipe file
+			writePipe(tempFileHandle, pipeFileHandle);
+
+			// Close temp file
+			close(tempFileHandle);
 		}
+
+		// Close reading file
+		close(openFileForReadingHandle);
+
 	}
 
 	return 0;
 }
 
 //
-// FUNCTION:	newPath
+//	FUNCTION:	writePipe
 //
-// SUPPOSE:		Create new path for file and folder
+//	SUPPOSE:	All results are writing from temp file to pipe file
+//
+//	COMMENTS(TR)
+//
+void writePipe(const int tempFileHandle, const int pipeFileHandle)
+{
+	// Variable
+	char tempText[BUFFER_STANDART];
+
+	read(tempFileHandle, tempText, strlen(tempText));
+	printf("%s\n", tempText);
+	write(pipeFileHandle, tempText, strlen(tempText));
+
+	return;
+}
+
+void writeLogFile(const char *results)
+{
+	int logFileHandle = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND);
+	write(logFileHandle, results, strlen(results));
+	close(logFileHandle);
+
+	return;
+}
+
+//
+//	FUNCTION:	newPath
+//
+//	SUPPOSE:	Create new path for file and folder
+//
+//	COMMENTS(TR)
 //
 const char *createNewPath(const char *oldPath, const char *name)
 {
