@@ -12,7 +12,7 @@
 #define BUFFER_MINI 1024
 
 // Path size
-#define PATH_SIZE 255
+#define SIZE_256 256
 
 void fileCheck(char *, char *);
 
@@ -57,69 +57,71 @@ void fileCheck(char *currentPath, char *searchText)
 		// Reading directioary
 		while ((ent = readdir(dir)) != NULL)
 		{
+			// NO CWD and upper
+			if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
+				continue;
 			
 			// Child process can't be created
-			if (pipe(pipeFileDescription) < 0|| (childPid = fork()) < 0)
+			if (pipe(pipeFileDescription) < 0 || (childPid = fork()) < 0)
 			{
-				perror("no child\n");
+				perror("pipe\n");
+				perror("fork\n");
 				exit(EXIT_FAILURE);
 			}
 			else if (childPid) // Parent process
 			{
 				// We'll wait all chil process
-				wait(NULL);
+				int childStatus; 
+				waitpid(childPid, &childStatus, 0);
 
 				// Pipe for reading
-				char childName[100];
+				char childName[BUFFER_MINI];
 				close(pipeFileDescription[1]);
-				read(pipeFileDescription[0], childName, sizeof(childName));
-				printf("%s\n", childName);
-				close(pipeFileDescription[0]);
+				//if (0 < (read(pipeFileDescription[0], childName, sizeof(childName))))
+				int status = read(pipeFileDescription[0], childName, sizeof(childName));
+					printf("%s - %d\n", childName, status);
 
+				close(pipeFileDescription[0]);
 			}
 			else  // Child process
 			{
-
-				// Control
-				// Child name for pipe
-				char childName[100];
-				snprintf(childName, sizeof(childName), "Child name: %d", (int)getpid());
-				
-				//Pipe
-				close(pipeFileDescription[0]);
-				write(pipeFileDescription[1], childName, sizeof(childName));
-				close(pipeFileDescription[1]);
-
-				// NO CWD and upper
-				if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
-					exit(EXIT_FAILURE);
-
 				// Control for folder
-				if (ent->d_type == DT_DIR)
+				if (ent->d_type == DT_DIR) // Is this folder?
 				{
 					// Create new path
-					char newPath[PATH_SIZE];
+					char newPath[SIZE_256];
 					strcpy(newPath, currentPath);
 					strcat(newPath, "/");
 					strcat(newPath, ent->d_name);
 
 					// Filecheck new path
 					fileCheck(newPath, searchText);
+
+					// Successful
 					exit(EXIT_SUCCESS);
 				}
-				// Control for file
-				else if (ent->d_type == DT_REG)
+				else if (ent->d_type == DT_REG) // Is this file
 				{
+					// Child name for pipe
+					char childName[SIZE_256];
+					snprintf(childName, sizeof(childName), "%s - Childpid:%d", ent->d_name, (int)getpid());
+					
+					//Pipe
+					close(pipeFileDescription[0]);
+					write(pipeFileDescription[1], childName, sizeof(childName));
+					close(pipeFileDescription[1]);
 
 					// Searching new path
 					searching(currentPath, ent->d_name, searchText, pipeFileDescription[1]);
 
+					// Successful
 					exit(EXIT_SUCCESS);
 				}
 
 			} // end else
 
-		}
+		} // end while
+
 		closedir(dir);
 
 	} // end else
@@ -129,7 +131,7 @@ void fileCheck(char *currentPath, char *searchText)
 int searching(char *filePath, char *fileName, char *searchingWord, int pipeFileDescription)
 {
 	// Create file path
-	char newPath[PATH_SIZE];
+	char newPath[SIZE_256];
 	strcpy(newPath, filePath);
 	strcat(newPath, "/");
 	strcat(newPath, fileName);
@@ -203,4 +205,20 @@ int searching(char *filePath, char *fileName, char *searchingWord, int pipeFileD
 		close(openFileForReading);
 	}
 	return 0;
+}
+
+//
+// FUNCTION:	newPath
+//
+// SUPPOSE:		Create new path for file and folder
+//
+const char *createNewPath(const char *oldPath, const char *name)
+{
+	// Create file path
+	char *newPath;
+	strcpy(newPath, oldPath);
+	strcat(newPath, "/");
+	strcat(newPath, name);
+
+	return newPath;
 }
