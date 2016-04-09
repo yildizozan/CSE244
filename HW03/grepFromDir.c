@@ -24,7 +24,7 @@
 #define FIFO_PERMS (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
 #define FILE_CREAT_WRITE_APPEND (O_CREAT | O_WRONLY | O_APPEND)
 
-void fileCheck(char *, char *);
+void fileCheck(char *, char *, const int);
 
 int searchInFile(const char *, const char *, const char *, const int);
 
@@ -46,13 +46,12 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	*/
-
-	fileCheck(argv[1], argv[2]);
+	fileCheck(argv[1], argv[2], (int)getpid());
 
 	return 0;
 }
 
-void fileCheck(char *currentPath, char *searchText)
+void fileCheck(char *currentPath, char *searchText, const int mainPid)
 {
 	// Folder variables
 	DIR *dir;
@@ -109,24 +108,36 @@ void fileCheck(char *currentPath, char *searchText)
 				if (0 < (status = read(pipeFileDescription[0], results, sizeof(results))))
 				{
 					printf("%s%d\n", results, status);
-					//* writeLogFile(results); // Write pipe file result
 
 					int fifoDescripton = open(fifoFileName, WRITE_ONLY);
 
-					write(fifoDescripton, resultsFromPipe, strlen(resultsFromPipe));
-
+					int fifoStatus = write(fifoDescripton, results, strlen(results));
+					printf("%d\n", fifoStatus);
 					close(fifoDescripton);
 					//* writeFifo(results, fifoFileName);
 				}
 
-				readFifo(fifoFileName);
+				// Read fifo file
+				char fifoBuffer[BUFFER_STANDART];
 
+				int fifoDescripton = open(fifoFileName, READ_ONLY);
+
+				read(fifoDescripton, fifoBuffer, BUFFER_LARGE);
+				printf("%s\n", fifoBuffer);
+
+				close(fifoDescripton);
 
 
 				// Control
 				printf("--Status %d\n", status);
 
 				close(pipeFileDescription[0]);
+
+				// Writing log file all results
+				if (mainPid == (int)getpid())
+					writeLogFile(fifoBuffer);
+
+
 			}
 			else  // Child process
 			{
@@ -140,7 +151,7 @@ void fileCheck(char *currentPath, char *searchText)
 					strcat(newPath, ent->d_name);
 
 					// Filecheck new path
-					fileCheck(newPath, searchText);
+					fileCheck(newPath, searchText, (int)getpid());
 
 					// Fifo transion
 					//transitionFifo(fifoFileName);
