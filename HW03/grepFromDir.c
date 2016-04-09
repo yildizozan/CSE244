@@ -249,6 +249,10 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 			writePipe(tempFileDescriptor, pipeFileDescription);
 
 			close(tempFileDescriptor);
+
+			// Delete temp file or files
+			unlink(tempFileName);
+
 		}
 
 	} // end if else
