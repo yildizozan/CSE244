@@ -87,9 +87,15 @@ void fileCheck(char *currentPath, char *searchText)
 				close(pipeFileDescription[1]);
 
 				if (0 < (status = read(pipeFileDescription[0], results, sizeof(results))))
+				{
 					printf("%s%d\n", results, status);
+					writeLogFile(results); // Write pipe file result
+				}
+				
+				// Control
+				printf("--Status %d\n", status);
 
-				writeLogFile(results); // Write pipe file result
+
 
 				close(pipeFileDescription[0]);
 			}
@@ -267,9 +273,6 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 //
 void writePipe(const int tempFileDescriptor, const int pipeFileHandle)
 {
-// Control 235
-printf("--235\n");
-	
 	// Variable
 	char tempText[BUFFER_ULTRA];
 
