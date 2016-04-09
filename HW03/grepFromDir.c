@@ -10,6 +10,9 @@
 // Buffers
 #define BUFFER_STREAM 1
 #define BUFFER_MINI 1024
+#define BUFFER_STANDART 4096
+#define BUFFER_LARGE 16384
+#define BUFFER_ULTRA 65536
 
 // Path size
 #define SIZE_256 256
@@ -17,6 +20,10 @@
 void fileCheck(char *, char *);
 
 int searchInFile(const char *, const char *, const char *, const int);
+
+void writePipe(const int, const int);
+
+void writeLogFile(const char *);
 
 int main(int argc, char *argv[])
 {
@@ -76,11 +83,13 @@ void fileCheck(char *currentPath, char *searchText)
 
 				// Pipe for reading
 				int status;
-				char childName[BUFFER_MINI];
+				char results[BUFFER_STANDART];
 				close(pipeFileDescription[1]);
-				if (0 < (status = read(pipeFileDescription[0], childName, sizeof(childName))))
-				//status = read(pipeFileDescription[0], childName, sizeof(childName));
-					printf("%s%d\n", childName, status);
+
+				if (0 < (status = read(pipeFileDescription[0], results, sizeof(results))))
+					printf("%s%d\n", results, status);
+
+				writeLogFile(results); // Write pipe file result
 
 				close(pipeFileDescription[0]);
 			}
@@ -140,7 +149,8 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 	char currentChar;
 
 	// Temp file variables
-	char tempFileText[SIZE_256];
+	char tempFileText[BUFFER_STANDART];
+	char tempFileName[SIZE_256];
 
 	// Create file path
 	char newPath[SIZE_256];
@@ -150,17 +160,17 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 
 
 		// Openin temp file for result
-		snprintf(tempFileText, sizeof(tempFileText), "%d.txt", getpid());
-		int tempFileHandle = open(tempFileText, O_CREAT | O_WRONLY | O_APPEND);
+		snprintf(tempFileName, sizeof(tempFileName), "%d.txt", getpid());
+		int tempFileDescriptor = open(tempFileName, O_CREAT | O_WRONLY);
 
 		// Write header for result temp file
 		snprintf(
 			tempFileText,
 			sizeof(tempFileText),
-			"%s\n%s -> %s\n",
+			"Path: %s\nFile: %s -> %s\n",
 			filePath, fileName, searchingWord
 		);
-		write(tempFileHandle, tempFileText, strlen(tempFileText));
+		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
 	// Opening file for searching (READ ONLY MODE)
 	int openFileForReadingHandle = open(newPath, O_RDONLY);
@@ -202,10 +212,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 						currentLineNumber,
 						curentColumnNumber - strlen(searchingWord)
 					);
-					write(tempFileHandle, tempFileText, strlen(tempFileText));
-
-					// Writing pipe
-					write(pipeFileDescription, tempFileText, strlen(tempFileText));
+					write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
 					// Must be zero
 					countLetter = 0;
@@ -217,33 +224,76 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 				countArgv = 0;
 			}
 
-		}
+		} // end while
 
 		// End of file
-		snprintf(tempFileText, sizeof(tempFileText), "-----------------------------------\n");
-			write(tempFileHandle, tempFileText, strlen(tempFileText));
+		snprintf(tempFileText, sizeof(tempFileText), "------------------------------------\n");
+		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
+
+		// Close tempfile
+		close(tempFileDescriptor);
 
 		// Close reading file
 		close(openFileForReadingHandle);
 
 		// If find to ant word, all results write pipe or unlink file
-		if (totalWord == 0)
+		if (0 < totalWord)
 		{
-			unlink(newPath);
+			// All results writing pipe file and close temp
+			tempFileDescriptor = open(tempFileName, O_RDONLY);
+
+			// Write from temp file to pipe
+			writePipe(tempFileDescriptor, pipeFileDescription);
+
+			// Close temp file
+			close(tempFileDescriptor);
 		}
-		else
-		{
-			//
-		}
-	}
+
+	} // end if else
+
+	// Delete temp file
+	unlink(tempFileName);
 
 	return 0;
+
+} // end function searchInFile
+
+//
+//	FUNCTION:	writePipe
+//
+//	SUPPOSE:	All results are writing from temp file to pipe file
+//
+//	COMMENTS(TR)
+//
+void writePipe(const int tempFileDescriptor, const int pipeFileHandle)
+{
+// Control 235
+printf("--235\n");
+	
+	// Variable
+	char tempText[BUFFER_ULTRA];
+
+	read(tempFileDescriptor, tempText, BUFFER_ULTRA);
+	write(pipeFileHandle, tempText, BUFFER_ULTRA);
+
+	return;
+}
+
+void writeLogFile(const char *results)
+{
+	int logFileHandle = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND);
+	write(logFileHandle, results, strlen(results));
+	close(logFileHandle);
+
+	return;
 }
 
 //
-// FUNCTION:	newPath
+//	FUNCTION:	newPath
 //
-// SUPPOSE:		Create new path for file and folder
+//	SUPPOSE:	Create new path for file and folder
+//
+//	COMMENTS(TR)
 //
 const char *createNewPath(const char *oldPath, const char *name)
 {
