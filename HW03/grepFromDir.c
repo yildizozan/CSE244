@@ -83,14 +83,11 @@ void fileCheck(char *currentPath, char *searchText)
 
 				// Pipe for reading
 				int status;
-				char results[BUFFER_LARGE];
-
+				char childName[BUFFER_STANDART];
 				close(pipeFileDescription[1]);
-				//if (0 < (status = read(pipeFileDescription[0], results, strlen(results))))
-				status = read(pipeFileDescription[0], results, strlen(results));
-					printf("%s%d\n", results, status);
-
-				writeLogFile(results);
+				if (0 < (status = read(pipeFileDescription[0], childName, sizeof(childName))))
+				//status = read(pipeFileDescription[0], childName, sizeof(childName));
+					printf("%s%d\n", childName, status);
 
 				close(pipeFileDescription[0]);
 			}
@@ -139,7 +136,7 @@ void fileCheck(char *currentPath, char *searchText)
 
 }
 
-int searchInFile(const char *filePath, const char *fileName, const char *searchingWord, const int pipeFileHandle)
+int searchInFile(const char *filePath, const char *fileName, const char *searchingWord, const int pipeFileDescription)
 {
 	// Variables
 	int currentLineNumber = 1,		// currentLineNumber is line counter
@@ -150,8 +147,8 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 	char currentChar;
 
 	// Temp file variables
+	char tempFileText[BUFFER_STANDART];
 	char tempFileName[SIZE_256];
-	char tempFileText[SIZE_256];
 
 	// Create file path
 	char newPath[SIZE_256];
@@ -162,7 +159,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 
 		// Openin temp file for result
 		snprintf(tempFileName, sizeof(tempFileName), "%d.txt", getpid());
-		int tempFileHandle = open(tempFileName, O_CREAT | O_RDWR | O_APPEND);
+		int tempFileDescriptor = open(tempFileName, O_CREAT | O_WRONLY);
 
 		// Write header for result temp file
 		snprintf(
@@ -171,7 +168,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 			"%s\n%s -> %s\n",
 			filePath, fileName, searchingWord
 		);
-		write(tempFileHandle, tempFileText, strlen(tempFileText));
+		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
 	// Opening file for searching (READ ONLY MODE)
 	int openFileForReadingHandle = open(newPath, O_RDONLY);
@@ -205,7 +202,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 				if (countLetter == strlen(searchingWord))
 				{
 					++totalWord;
-
+					
 					// Results are writing to temp file.
 					snprintf(tempFileText,
 						sizeof(tempFileText),
@@ -213,10 +210,10 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 						currentLineNumber,
 						curentColumnNumber - strlen(searchingWord)
 					);
-					write(tempFileHandle, tempFileText, strlen(tempFileText));
+					write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
 					// Writing pipe
-					write(pipeFileHandle, tempFileText, strlen(tempFileText));
+					write(pipeFileDescription, tempFileText, strlen(tempFileText));
 
 					// Must be zero
 					countLetter = 0;
@@ -232,32 +229,24 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 
 		// End of file
 		snprintf(tempFileText, sizeof(tempFileText), "-----------------------------------\n");
-			write(tempFileHandle, tempFileText, strlen(tempFileText));
+		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
-		// If find to ant word, all results write pipe or unlink file
-		if (totalWord == 0)
-		{
-			// Close temp file
-			close(tempFileHandle);
-
-			// After delete file
-			unlink(tempFileName);
-		}
-		else
-		{
-			// All results writing pipe file
-			writePipe(tempFileHandle, pipeFileHandle);
-
-			// Close temp file
-			close(tempFileHandle);
-
-			// After delete file
-			unlink(tempFileName);
-		}
+		// Close tempfile
+		close(tempFileDescriptor);
 
 		// Close reading file
 		close(openFileForReadingHandle);
 
+		// If find to ant word, all results write pipe or unlink file
+		if (totalWord == 0)
+		{
+			unlink(tempFileName);
+		}
+		else
+		{
+			// Writing pipe
+			//write(pipeFileDescription, tempFileText, strlen(tempFileText));
+		}
 	}
 
 	return 0;
@@ -270,12 +259,15 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 //
 //	COMMENTS(TR)
 //
-void writePipe(const int tempFileHandle, const int pipeFileHandle)
+void writePipe(const int tempFileDescriptor, const int pipeFileHandle)
 {
+// Control 235
+printf("--235\n");
+	
 	// Variable
 	char tempText[BUFFER_STANDART];
 
-	read(tempFileHandle, tempText, strlen(tempText));
+	read(tempFileDescriptor, tempText, sizeof(tempText));
 	write(pipeFileHandle, tempText, strlen(tempText));
 
 	return;
