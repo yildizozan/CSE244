@@ -8,14 +8,21 @@
 #include <string.h>
 
 // Buffers
-#define BUFFER_STREAM 1
-#define BUFFER_MINI 1024
-#define BUFFER_STANDART 4096
-#define BUFFER_LARGE 16384
-#define BUFFER_ULTRA 65536
+#define BUFFER_STREAM		1		// Stream
+#define BUFFER_MINI			1024	// Mini
+#define BUFFER_STANDART		2048	// Standart
+#define BUFFER_LARGE		4096	// Large
+#define BUFFER_ULTRA		8192	// Ultra
 
-// Path size
+// Sizes
 #define SIZE_256 256
+#define FILE_NAME_SIZE 256
+
+// Modes
+#define READ_ONLY (O_RDONLY) 
+#define WRITE_ONLY (O_WRONLY)
+#define FIFO_PERMS (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+#define FILE_CREAT_WRITE_APPEND (O_CREAT | O_WRONLY | O_APPEND)
 
 void fileCheck(char *, char *);
 
@@ -23,18 +30,35 @@ int searchInFile(const char *, const char *, const char *, const int);
 
 void writePipe(const int, const int);
 
+void writeFifo(const char *, const char *);
+
+void readFifo(const char *);
+
 void writeLogFile(const char *);
+
+// Signal
+void SignalHandler(int signo)
+{
+	if (signo == SIGINT)
+	{
+		while(wait(NULL) > 0)
+			kill(0, SIGKILL);
+	}
+
+	writeLogFile("Ctrl + C yakaldığı için program durdu\n");
+
+	return;
+}
 
 int main(int argc, char *argv[])
 {
-	/*
 	// Using:
 	if (argc != 3)
 	{
 		printf("Using: ./grD [directory] text\n");
 		return 1;
 	}
-	*/
+
 
 	fileCheck(argv[1], argv[2]);
 
@@ -53,6 +77,9 @@ void fileCheck(char *currentPath, char *searchText)
 	// Pipe variable
 	int pipeFileDescription[2];
 
+	// Fifo variable
+	char fifoFileName[FILE_NAME_SIZE];
+
 	// Try to open folder
 	if ((dir = opendir(currentPath)) == NULL)
 	{
@@ -68,7 +95,11 @@ void fileCheck(char *currentPath, char *searchText)
 			if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
 				continue;
 			
-			// Child process can't be created
+			// Fifo
+			snprintf(fifoFileName, sizeof(fifoFileName), "%d", (int)getppid());
+			// DISABLE: if (mkfifo(fifoFileName, FIFO_PERMS) == -1) perror("mkfifo");
+
+			// Create pipe and child 
 			if (pipe(pipeFileDescription) < 0 || (childPid = fork()) < 0)
 			{
 				perror("pipe\n");
@@ -77,9 +108,14 @@ void fileCheck(char *currentPath, char *searchText)
 			}
 			else if (childPid) // Parent process
 			{
+				// Signal
+				signal(SIGINT, SignalHandler);
+
 				// We'll wait all chil process
 				int childStatus; 
 				waitpid(childPid, &childStatus, 0);
+
+				// Fifo
 
 				// Pipe for reading
 				int status;
@@ -87,9 +123,9 @@ void fileCheck(char *currentPath, char *searchText)
 				close(pipeFileDescription[1]);
 
 				if (0 < (status = read(pipeFileDescription[0], results, sizeof(results))))
-					printf("%s%d\n", results, status);
-
-				writeLogFile(results); // Write pipe file result
+				{
+					writeLogFile(results); // Write pipe file result
+				}
 
 				close(pipeFileDescription[0]);
 			}
@@ -161,7 +197,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 
 		// Openin temp file for result
 		snprintf(tempFileName, sizeof(tempFileName), "%d.txt", getpid());
-		int tempFileDescriptor = open(tempFileName, O_CREAT | O_WRONLY);
+		int tempFileDescriptor = open(tempFileName, FILE_CREAT_WRITE_APPEND);
 
 		// Write header for result temp file
 		snprintf(
@@ -230,6 +266,9 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 		snprintf(tempFileText, sizeof(tempFileText), "------------------------------------\n");
 		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
+		// Print screen
+		printf("%s -> %d\n", fileName, totalWord);
+
 		// Close tempfile
 		close(tempFileDescriptor);
 
@@ -267,9 +306,6 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 //
 void writePipe(const int tempFileDescriptor, const int pipeFileHandle)
 {
-// Control 235
-printf("--235\n");
-	
 	// Variable
 	char tempText[BUFFER_ULTRA];
 
@@ -281,7 +317,7 @@ printf("--235\n");
 
 void writeLogFile(const char *results)
 {
-	int logFileHandle = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND);
+	int logFileHandle = open("gfD.log", FILE_CREAT_WRITE_APPEND);
 	write(logFileHandle, results, strlen(results));
 	close(logFileHandle);
 
@@ -304,4 +340,31 @@ const char *createNewPath(const char *oldPath, const char *name)
 	strcat(newPath, name);
 
 	return newPath;
+}
+
+void writeFifo(const char *resultsFromPipe, const char *fifoFileName)
+{
+	char fifoFilename[FILE_NAME_SIZE];
+	snprintf(fifoFilename, sizeof(fifoFilename), "%d", getppid());
+
+	int fifoDescripton = open(fifoFileName, WRITE_ONLY);
+
+	write(fifoDescripton, resultsFromPipe, strlen(resultsFromPipe));
+
+	close(fifoDescripton);
+}
+
+void readFifo(const char *fifoFileName)
+{
+	char fifoFilename[FILE_NAME_SIZE];
+	snprintf(fifoFilename, sizeof(fifoFilename), "%d", getpid());
+
+	char fifoBuffer[BUFFER_STANDART];
+
+	int fifoDescripton = open(fifoFileName, READ_ONLY);
+
+	read(fifoDescripton, fifoBuffer, strlen(fifoBuffer));
+	printf("%s\n", fifoBuffer);
+
+	close(fifoDescripton);
 }
