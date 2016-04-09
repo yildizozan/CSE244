@@ -83,11 +83,13 @@ void fileCheck(char *currentPath, char *searchText)
 
 				// Pipe for reading
 				int status;
-				char childName[BUFFER_STANDART];
+				char results[BUFFER_STANDART];
 				close(pipeFileDescription[1]);
-				if (0 < (status = read(pipeFileDescription[0], childName, sizeof(childName))))
-				//status = read(pipeFileDescription[0], childName, sizeof(childName));
-					printf("%s%d\n", childName, status);
+
+				if (0 < (status = read(pipeFileDescription[0], results, sizeof(results))))
+					printf("%s%d\n", results, status);
+
+				writeLogFile(results); // Write pipe file result
 
 				close(pipeFileDescription[0]);
 			}
@@ -165,7 +167,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 		snprintf(
 			tempFileText,
 			sizeof(tempFileText),
-			"%s\n%s -> %s\n",
+			"Path: %s\nFile: %s -> %s\n",
 			filePath, fileName, searchingWord
 		);
 		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
@@ -212,9 +214,6 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 					);
 					write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
-					// Writing pipe
-					write(pipeFileDescription, tempFileText, strlen(tempFileText));
-
 					// Must be zero
 					countLetter = 0;
 				}
@@ -225,10 +224,10 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 				countArgv = 0;
 			}
 
-		}
+		} // end while
 
 		// End of file
-		snprintf(tempFileText, sizeof(tempFileText), "-----------------------------------\n");
+		snprintf(tempFileText, sizeof(tempFileText), "------------------------------------\n");
 		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
 		// Close tempfile
@@ -244,13 +243,19 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 		}
 		else
 		{
-			// Writing pipe
-			//write(pipeFileDescription, tempFileText, strlen(tempFileText));
+			// All results writing pipe file and close temp
+			tempFileDescriptor = open(tempFileName, O_RDONLY);
+
+			writePipe(tempFileDescriptor, pipeFileDescription);
+
+			close(tempFileDescriptor);
 		}
-	}
+
+	} // end if else
 
 	return 0;
-}
+
+} // end function searchInFile
 
 //
 //	FUNCTION:	writePipe
@@ -265,10 +270,10 @@ void writePipe(const int tempFileDescriptor, const int pipeFileHandle)
 printf("--235\n");
 	
 	// Variable
-	char tempText[BUFFER_STANDART];
+	char tempText[BUFFER_ULTRA];
 
-	read(tempFileDescriptor, tempText, sizeof(tempText));
-	write(pipeFileHandle, tempText, strlen(tempText));
+	read(tempFileDescriptor, tempText, BUFFER_ULTRA);
+	write(pipeFileHandle, tempText, BUFFER_ULTRA);
 
 	return;
 }
