@@ -30,9 +30,9 @@ int searchInFile(const char *, const char *, const char *, const int);
 
 void writePipe(const int, const int);
 
-void writeFifo(const char *, int);
-
-void readFifo(void);
+void writeFifo(const char *resultsFromPipe, const char *fifoFileName);
+void readFifo(const char *fifoFileName);
+void transitionFifo(const char *fifoFileName);
 
 void writeLogFile(const char *);
 
@@ -83,40 +83,48 @@ void fileCheck(char *currentPath, char *searchText)
 				continue;
 			
 			// Fifo
-			snprintf(fifoFileName, sizeof(fifoFileName), "%d", (int)getppid());
-			if (mkfifo(fifoFileName, FIFO_PERMS) == -1)
-				perror("mkfifo");
+			snprintf(fifoFileName, sizeof(fifoFileName), "%d", (int)getpid());
+			if (mkfifo(fifoFileName, FIFO_PERMS) < 0)
+				perror("Error code 496\n");
 
 			// Create pipe and child 
 			if (pipe(pipeFileDescription) < 0 || (childPid = fork()) < 0)
 			{
-				perror("pipe\n");
-				perror("fork\n");
+				perror("Error code 825\n");
 				exit(EXIT_FAILURE);
 			}
 			else if (childPid) // Parent process
 			{
+
 				// We'll wait all chil process
 				int childStatus; 
 				waitpid(childPid, &childStatus, 0);
 
-				// Fifo
-
 				// Pipe for reading
-				int status;
+				int status; //* Control
 				char results[BUFFER_STANDART];
 				close(pipeFileDescription[1]);
+
 
 				if (0 < (status = read(pipeFileDescription[0], results, sizeof(results))))
 				{
 					printf("%s%d\n", results, status);
-					writeLogFile(results); // Write pipe file result
+					//* writeLogFile(results); // Write pipe file result
+
+					int fifoDescripton = open(fifoFileName, WRITE_ONLY);
+
+					write(fifoDescripton, resultsFromPipe, strlen(resultsFromPipe));
+
+					close(fifoDescripton);
+					//* writeFifo(results, fifoFileName);
 				}
+
+				readFifo(fifoFileName);
+
+
 
 				// Control
 				printf("--Status %d\n", status);
-
-
 
 				close(pipeFileDescription[0]);
 			}
@@ -133,6 +141,9 @@ void fileCheck(char *currentPath, char *searchText)
 
 					// Filecheck new path
 					fileCheck(newPath, searchText);
+
+					// Fifo transion
+					//transitionFifo(fifoFileName);
 
 					// Successful
 					exit(EXIT_SUCCESS);
@@ -330,29 +341,46 @@ const char *createNewPath(const char *oldPath, const char *name)
 	return newPath;
 }
 
-void writeFifo(const char *resultsFromPipe, int fifoFileName)
+void writeFifo(const char *resultsFromPipe, const char *fifoFileName)
 {
-	char fifoFilename[FILE_NAME_SIZE];
-	snprintf(fifoFilename, sizeof(fifoFilename), "%d", getppid());
-
-	fifoDescripton = open(fifoName, WRITE_ONLY);
+	int fifoDescripton = open(fifoFileName, WRITE_ONLY);
 
 	write(fifoDescripton, resultsFromPipe, strlen(resultsFromPipe));
 
 	close(fifoDescripton);
+
+	return;
 }
 
-void readFifo(void)
+void readFifo(const char *fifoFileName)
 {
-	char fifoFilename[FILE_NAME_SIZE];
-	snprintf(fifoFilename, sizeof(fifoFilename), "%d", getpid());
-
 	char fifoBuffer[BUFFER_STANDART];
 
-	fifoDescripton = open(fifoName, READ_ONLY);
+	int fifoDescripton = open(fifoFileName, READ_ONLY);
 
 	read(fifoDescripton, fifoBuffer, strlen(fifoBuffer));
 	printf("%s\n", fifoBuffer);
 
 	close(fifoDescripton);
+
+	return;
+}
+
+void transitionFifo(const char *fifoFileName)
+{
+	char fifoChildFileName[FILE_NAME_SIZE];
+	snprintf(fifoChildFileName, sizeof(fifoChildFileName), "%d", (int)getpid());
+
+	char fifoBuffer[BUFFER_STANDART];
+
+	int fifoChildFileDescription = open(fifoChildFileName, READ_ONLY);
+		read(fifoChildFileDescription, fifoBuffer, BUFFER_STANDART);
+
+	int fifoParentFileDescription = open(fifoFileName, WRITE_ONLY);
+		write(fifoParentFileDescription, fifoBuffer, BUFFER_STANDART);
+
+	close(fifoChildFileDescription);
+	close(fifoChildFileDescription);
+
+	return;
 }
