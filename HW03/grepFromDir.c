@@ -237,25 +237,22 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 		close(openFileForReadingHandle);
 
 		// If find to ant word, all results write pipe or unlink file
-		if (totalWord == 0)
-		{
-			unlink(tempFileName);
-		}
-		else
+		if (0 < totalWord)
 		{
 			// All results writing pipe file and close temp
 			tempFileDescriptor = open(tempFileName, O_RDONLY);
 
+			// Write from temp file to pipe
 			writePipe(tempFileDescriptor, pipeFileDescription);
 
+			// Close temp file
 			close(tempFileDescriptor);
-
-			// Delete temp file or files
-			unlink(tempFileName);
-
 		}
 
 	} // end if else
+
+	// Delete temp file
+	unlink(tempFileName);
 
 	return 0;
 
