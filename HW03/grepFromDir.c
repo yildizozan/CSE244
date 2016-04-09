@@ -36,16 +36,29 @@ void readFifo(const char *);
 
 void writeLogFile(const char *);
 
+// Signal
+void SignalHandler(int signo)
+{
+	if (signo == SIGINT)
+	{
+		while(wait(NULL) > 0)
+			kill(0, SIGKILL);
+	}
+
+	writeLogFile("Ctrl + C yakaldığı için program durdu\n");
+
+	return;
+}
+
 int main(int argc, char *argv[])
 {
-	/*
 	// Using:
 	if (argc != 3)
 	{
 		printf("Using: ./grD [directory] text\n");
 		return 1;
 	}
-	*/
+
 
 	fileCheck(argv[1], argv[2]);
 
@@ -84,8 +97,7 @@ void fileCheck(char *currentPath, char *searchText)
 			
 			// Fifo
 			snprintf(fifoFileName, sizeof(fifoFileName), "%d", (int)getppid());
-			if (mkfifo(fifoFileName, FIFO_PERMS) == -1)
-				perror("mkfifo");
+			// DISABLE: if (mkfifo(fifoFileName, FIFO_PERMS) == -1) perror("mkfifo");
 
 			// Create pipe and child 
 			if (pipe(pipeFileDescription) < 0 || (childPid = fork()) < 0)
@@ -96,6 +108,9 @@ void fileCheck(char *currentPath, char *searchText)
 			}
 			else if (childPid) // Parent process
 			{
+				// Signal
+				signal(SIGINT, SignalHandler);
+
 				// We'll wait all chil process
 				int childStatus; 
 				waitpid(childPid, &childStatus, 0);
@@ -109,14 +124,8 @@ void fileCheck(char *currentPath, char *searchText)
 
 				if (0 < (status = read(pipeFileDescription[0], results, sizeof(results))))
 				{
-					printf("%s%d\n", results, status);
 					writeLogFile(results); // Write pipe file result
 				}
-
-				// Control
-				printf("--Status %d\n", status);
-
-
 
 				close(pipeFileDescription[0]);
 			}
@@ -256,6 +265,9 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 		// End of file
 		snprintf(tempFileText, sizeof(tempFileText), "------------------------------------\n");
 		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
+
+		// Print screen
+		printf("%s -> %d\n", fileName, totalWord);
 
 		// Close tempfile
 		close(tempFileDescriptor);
