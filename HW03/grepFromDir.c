@@ -10,15 +10,17 @@
 // Buffers
 #define BUFFER_STREAM		1		// Stream
 #define BUFFER_MINI			1024	// Mini
-#define BUFFER_STANDART		4096	// Standart
-#define BUFFER_LARGE		16384	// Large
-#define BUFFER_ULTRA		65536	// Ultra
+#define BUFFER_STANDART		2048	// Standart
+#define BUFFER_LARGE		4096	// Large
+#define BUFFER_ULTRA		8192	// Ultra
 
 // Sizes
 #define SIZE_256 256
 #define FILE_NAME_SIZE 256
 
 // Modes
+#define READ_ONLY (O_RDONLY) 
+#define WRITE_ONLY (O_WRONLY)
 #define FIFO_PERMS (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
 #define FILE_CREAT_WRITE_APPEND (O_CREAT | O_WRONLY | O_APPEND)
 
@@ -27,6 +29,10 @@ void fileCheck(char *, char *);
 int searchInFile(const char *, const char *, const char *, const int);
 
 void writePipe(const int, const int);
+
+void writeFifo(const char *, int);
+
+void readFifo(void);
 
 void writeLogFile(const char *);
 
@@ -59,7 +65,7 @@ void fileCheck(char *currentPath, char *searchText)
 	int pipeFileDescription[2];
 
 	// Fifo variable
-	char fifoFilename[FILE_NAME_SIZE];
+	char fifoFileName[FILE_NAME_SIZE];
 
 	// Try to open folder
 	if ((dir = opendir(currentPath)) == NULL)
@@ -77,8 +83,8 @@ void fileCheck(char *currentPath, char *searchText)
 				continue;
 			
 			// Fifo
-			snprintf(fifoFilename, sizeof(fifoFilename), "%d", (int)getppid());
-			if (mkfifo(fifoFilename, FIFO_PERMS) == -1)
+			snprintf(fifoFileName, sizeof(fifoFileName), "%d", (int)getppid());
+			if (mkfifo(fifoFileName, FIFO_PERMS) == -1)
 				perror("mkfifo");
 
 			// Create pipe and child 
@@ -93,6 +99,8 @@ void fileCheck(char *currentPath, char *searchText)
 				// We'll wait all chil process
 				int childStatus; 
 				waitpid(childPid, &childStatus, 0);
+
+				// Fifo
 
 				// Pipe for reading
 				int status;
@@ -320,4 +328,31 @@ const char *createNewPath(const char *oldPath, const char *name)
 	strcat(newPath, name);
 
 	return newPath;
+}
+
+void writeFifo(const char *resultsFromPipe, int fifoFileName)
+{
+	char fifoFilename[FILE_NAME_SIZE];
+	snprintf(fifoFilename, sizeof(fifoFilename), "%d", getppid());
+
+	fifoDescripton = open(fifoName, WRITE_ONLY);
+
+	write(fifoDescripton, resultsFromPipe, strlen(resultsFromPipe));
+
+	close(fifoDescripton);
+}
+
+void readFifo(void)
+{
+	char fifoFilename[FILE_NAME_SIZE];
+	snprintf(fifoFilename, sizeof(fifoFilename), "%d", getpid());
+
+	char fifoBuffer[BUFFER_STANDART];
+
+	fifoDescripton = open(fifoName, READ_ONLY);
+
+	read(fifoDescripton, fifoBuffer, strlen(fifoBuffer));
+	printf("%s\n", fifoBuffer);
+
+	close(fifoDescripton);
 }
