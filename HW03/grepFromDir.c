@@ -8,14 +8,19 @@
 #include <string.h>
 
 // Buffers
-#define BUFFER_STREAM 1
-#define BUFFER_MINI 1024
-#define BUFFER_STANDART 4096
-#define BUFFER_LARGE 16384
-#define BUFFER_ULTRA 65536
+#define BUFFER_STREAM		1		// Stream
+#define BUFFER_MINI			1024	// Mini
+#define BUFFER_STANDART		4096	// Standart
+#define BUFFER_LARGE		16384	// Large
+#define BUFFER_ULTRA		65536	// Ultra
 
-// Path size
+// Sizes
 #define SIZE_256 256
+#define FILE_NAME_SIZE 256
+
+// Modes
+#define FIFO_PERMS (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
+#define FILE_CREAT_WRITE_APPEND (O_CREAT | O_WRONLY | O_APPEND)
 
 void fileCheck(char *, char *);
 
@@ -53,6 +58,9 @@ void fileCheck(char *currentPath, char *searchText)
 	// Pipe variable
 	int pipeFileDescription[2];
 
+	// Fifo variable
+	char fifoFilename[FILE_NAME_SIZE];
+
 	// Try to open folder
 	if ((dir = opendir(currentPath)) == NULL)
 	{
@@ -68,7 +76,12 @@ void fileCheck(char *currentPath, char *searchText)
 			if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
 				continue;
 			
-			// Child process can't be created
+			// Fifo
+			snprintf(fifoFilename, sizeof(fifoFilename), "%d", (int)getppid());
+			if (mkfifo(fifoFilename, FIFO_PERMS) == -1)
+				perror("mkfifo");
+
+			// Create pipe and child 
 			if (pipe(pipeFileDescription) < 0 || (childPid = fork()) < 0)
 			{
 				perror("pipe\n");
@@ -91,7 +104,7 @@ void fileCheck(char *currentPath, char *searchText)
 					printf("%s%d\n", results, status);
 					writeLogFile(results); // Write pipe file result
 				}
-				
+
 				// Control
 				printf("--Status %d\n", status);
 
@@ -167,7 +180,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 
 		// Openin temp file for result
 		snprintf(tempFileName, sizeof(tempFileName), "%d.txt", getpid());
-		int tempFileDescriptor = open(tempFileName, O_CREAT | O_WRONLY);
+		int tempFileDescriptor = open(tempFileName, FILE_CREAT_WRITE_APPEND);
 
 		// Write header for result temp file
 		snprintf(
@@ -284,7 +297,7 @@ void writePipe(const int tempFileDescriptor, const int pipeFileHandle)
 
 void writeLogFile(const char *results)
 {
-	int logFileHandle = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND);
+	int logFileHandle = open("gfD.log", FILE_CREAT_WRITE_APPEND);
 	write(logFileHandle, results, strlen(results));
 	close(logFileHandle);
 
