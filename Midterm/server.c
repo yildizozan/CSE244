@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/stat.h>
@@ -33,7 +34,7 @@ int main(int argc, char *argv[])
 		We'll try to create fifo file for connection
 		if there is a fifo connection file, exiting for security
 	*/
-	if (mkfifo("Connection", S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH) < 0)
+	if (mkfifo("Connection", 0666) < 0)
 	{
 		printf("Cannot create 'Connection' fifo file..\n");
 		printf("We'll exiting..\n");
@@ -46,20 +47,24 @@ int main(int argc, char *argv[])
 		printf("We'll exiting..\n");
 		exit(EXIT_FAILURE);
 	}
-	
+	else
+		printf("Server working and waiting client..\n");
+
 	while(1)
 	{
-		/* Connection waiting */
-		printf("Client bekleniyor...\n");
 		if (0 < read(fifoFileDescripton, fifoBuffer, BUFFER_SIZE))
 		{
-			printf("Merhaba ben SERVER!\n");
-			printf("Fifo results:\n%s\n", fifoBuffer);
-		}
-	}
+			printf("Client message: %s\n", fifoBuffer);
+		}/* end if read */
 
 
+      memset(fifoBuffer, 0, BUFFER_SIZE);
+
+	} /* end while */
+
+	close(fifoFileDescripton);
 	unlink("Connection");
+
 	return 1;
 }
 /*

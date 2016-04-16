@@ -3,6 +3,7 @@
 #include <fcntl.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <sys/types.h>
 #include <unistd.h>
 
 #define BUFFER_SIZE 4096
@@ -21,13 +22,18 @@ int main()
 		exit(EXIT_FAILURE);
 	}
 
+	printf("Your message to server: ");
+	scanf("%s", fifoBuffer);
+
 	/*
 		*
 	*/
-	if (write(fifoFileDescription, "Hello", sizeof("Hello")) < 0)
+	if (write(fifoFileDescription, fifoBuffer, BUFFER_SIZE) < 0)
 	{
 		printf("Fifo gönderilemedi..\n");
 	}
+
+	close(fifoFileDescription);
 
 
 	return 1;
