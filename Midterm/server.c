@@ -47,13 +47,19 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 	
-	if (0 < read(fifoFileDescripton, fifoBuffer, BUFFER_SIZE))
+	while(1)
 	{
-		printf("Merhaba ben SERVER!\n");
-		printf("Fifo results:\n%s\n", fifoBuffer);
+		/* Connection waiting */
+		printf("Client bekleniyor...\n");
+		if (0 < read(fifoFileDescripton, fifoBuffer, BUFFER_SIZE))
+		{
+			printf("Merhaba ben SERVER!\n");
+			printf("Fifo results:\n%s\n", fifoBuffer);
+		}
 	}
 
 
+	unlink("Connection");
 	return 1;
 }
 /*

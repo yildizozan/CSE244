@@ -1,18 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <fcntl.h>
 #include <errno.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #define BUFFER_SIZE 4096
 
 int main()
 {
 	/* Fifo */
+	int fifoFileDescription;
 	char fifoBuffer[BUFFER_SIZE];
 	/*
 		We can try to open fifo file for server connection
 	*/
-	if (open("Connection", O_WRONLY) < 0)
+	if ((fifoFileDescription = open("Connection", O_WRONLY)) < 0)
 	{
 		printf("Server not open\nExiting..");
 		exit(EXIT_FAILURE);
@@ -21,9 +24,9 @@ int main()
 	/*
 		*
 	*/
-	if (write() < 0)
+	if (write(fifoFileDescription, "Hello", sizeof("Hello")) < 0)
 	{
-		/* code */
+		printf("Fifo gönderilemedi..\n");
 	}
 
 
