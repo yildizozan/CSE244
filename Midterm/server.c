@@ -113,12 +113,11 @@ printf("%s\n", fifoSecureConnectionNameForClient);
 			{
 
 				fifoDescriptionChild = open(fifoSecureConnectionNameForClient, O_RDWR);
-				if (write(fifoDescriptionChild, "Welcome. I'm chil process\n", 
-					sizeof("Welcome. I'm chil process\n")) < 0)
-				{
+				if (write(fifoDescriptionChild, "Welcome. I'm chil process\n", sizeof("Welcome. I'm chil process\n")) < 0)
 					perror("Error 154");
-				}
 
+				close(fifoDescriptionChild);
+				unlink(fifoSecureConnectionNameForClient);
 				exit(EXIT_SUCCESS);
 			}
 

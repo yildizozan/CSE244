@@ -26,9 +26,6 @@ int main()
 	/* Control variables */
 	int status;
 
-	/* Control printf */
-	printf("-%d\n", (int)getpid());
-
 	/*
 		We can try to open fifo file for server connection
 	*/
@@ -41,44 +38,40 @@ int main()
 	else
 	{
 		/*
-			Create request protocol
-			Client send pid number to server.
-			Server create new fifo with client pid number.
+			1- Fill request
+			2- Create protocol and add client pid in protocol
+			3- Send request (send pid)
+			4- Server response is pid and protocolddd
 		*/
 		request.pid = (int)getpid();
-		if (write(fifoDescriptionMainConnection, &request, sizeof(request)) < 0)
-			perror("Error code 849:");
+		snprintf(fifoNewSecureConnectionNameForServer, GTU_PRO_LEN, GTU_PRO_SEC, request.pid);
+
+		while(strcmp(fifoNewSecureConnectionNameForServer, response.identity) != 0)
+		{
+			if (write(fifoDescriptionMainConnection, &request, sizeof(request)) < 0)
+				perror("Error code 849:");
+
+			if (read(fifoDescriptionMainConnection, &response, sizeof(response)) < 0)
+			{
+				perror("Error try again code 516:");
+				exit(EXIT_FAILURE);
+			}
+		}
 
 		/*
-			Try to connect server
+			Response protocol control
 		*/
-		if (read(fifoDescriptionMainConnection, &response, sizeof(response)) < 0)
-		{
-			perror("Error try again code 516:");
-			exit(EXIT_FAILURE);
-		}
+		printf("Connection OK!\n");
+
 	}
 
-	printf("-- ID: %d - SEC: %s\n", response.identityNo, response.identity);
+printf("-- ID: %d - SEC: %s\n", response.identityNo, response.identity);
 
-	/*
-		Response protocol control
-	*/
-	snprintf(fifoNewSecureConnectionNameForServer, GTU_PRO_LEN, GTU_PRO_SEC, (int)getpid());
-	if (strcmp(fifoNewSecureConnectionNameForServer, response.identity) == 0)
-	{
+	if ((fifoDescriptionNewSecureConnection = open(fifoNewSecureConnectionNameForServer, O_RDWR)) < 0)
+		perror("Error code 342:");
 
-		if ((fifoDescriptionNewSecureConnection = open(fifoNewSecureConnectionNameForServer, O_RDWR)) < 0)
-			perror("Error code 342:");
-
-		if (0 < read(fifoDescriptionNewSecureConnection, fifoBuffer, BUFFER_SIZE))
-		{
+	if (0 < read(fifoDescriptionNewSecureConnection, fifoBuffer, BUFFER_SIZE))
 		printf("%s", fifoBuffer);
-		};
-
-	} /* end if protocol control and server connection */
-
-
 
 
 	close(fifoDescriptionNewSecureConnection);
