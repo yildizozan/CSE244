@@ -9,6 +9,8 @@
 
 #define BUFFER_SIZE 4096
 
+int snprintf(char *, size_t, const char *, int);
+
 int main()
 {
 	/* Protocol variables */
@@ -16,51 +18,71 @@ int main()
 	struct _response response;
 
 	/* Fifo variables */
-	int fifoFileDescriptionMain;
-	int fifoFileDescriptionSafeConn;
+	int fifoDescriptionMainConnection;
+	int fifoDescriptionNewSecureConnection;
 	char fifoBuffer[BUFFER_SIZE];
-	char *fifoFileNewConnection;
+	char *fifoNewSecureConnectionNameForServer;
+
+	/* Control variables */
+	int status;
 
 	/* Control printf */
 	printf("-%d\n", (int)getpid());
 
 	/*
-	We can try to open fifo file for server connection
+		We can try to open fifo file for server connection
 	*/
-	if ((fifoFileDescriptionMain = open(GTU_PRO_NAM, O_RDWR)) < 0)
+	if ((fifoDescriptionMainConnection = open(GTU_PRO_NAM, O_RDWR)) < 0)
 	{
 		printf("Server not open\nExiting..");
-		close(fifoFileDescriptionMain);
+		close(fifoDescriptionMainConnection);
 		exit(EXIT_FAILURE);
 	}
 	else
 	{
 		/*
-		Create request protocol
-		Client send pid number to server.
-		Server create new fifo with client pid number.
+			Create request protocol
+			Client send pid number to server.
+			Server create new fifo with client pid number.
 		*/
 		request.pid = (int)getpid();
-		if (write(fifoFileDescriptionMain, &request, sizeof(request)) < 0)
+		if (write(fifoDescriptionMainConnection, &request, sizeof(request)) < 0)
 			perror("Error code 849:");
 
-		if (write(fifoFileDescriptionMain, &response, sizeof(response)) < 0)
-			perror("Error code 516:");
+		/*
+			Try to connect server
+		*/
+		if (read(fifoDescriptionMainConnection, &response, sizeof(response)) < 0)
+		{
+			perror("Error try again code 516:");
+			exit(EXIT_FAILURE);
+		}
 	}
 
-printf("-516: %d\n", response.identityNo);
+	printf("-- ID: %d - SEC: %s\n", response.identityNo, response.identity);
 
-	snprintf(fifoFileNewConnection, GTU_PRO_LEN, GTU_PRO_SEC, (int)getpid());
-	if ((fifoFileDescriptionSafeConn = open(fifoBuffer, O_RDWR)) < 0)
-		perror("Error code 342:");
+	/*
+		Response protocol control
+	*/
+	snprintf(fifoNewSecureConnectionNameForServer, GTU_PRO_LEN, GTU_PRO_SEC, (int)getpid());
+	if (strcmp(fifoNewSecureConnectionNameForServer, response.identity) == 0)
+	{
 
-	read(fifoFileDescriptionSafeConn, fifoBuffer, sizeof(BUFFER_SIZE));
+		if ((fifoDescriptionNewSecureConnection = open(fifoNewSecureConnectionNameForServer, O_RDWR)) < 0)
+			perror("Error code 342:");
+
+		if (0 < read(fifoDescriptionNewSecureConnection, fifoBuffer, BUFFER_SIZE))
+		{
+		printf("%s", fifoBuffer);
+		};
+
+	} /* end if protocol control and server connection */
 
 
 
 
-
-	close(fifoFileDescriptionMain);
+	close(fifoDescriptionNewSecureConnection);
+	close(fifoDescriptionMainConnection);
 
 	return 1;
 }

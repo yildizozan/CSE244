@@ -25,10 +25,10 @@ int main(int argc, char *argv[])
 	int maxClient = atoi(argv[2]);
 
 	/* Fifo status */
-	int fifoFileDescriptionMain;
-	int fifoFileDescriptionChild;
+	int fifoDescriptionMainConnection;
+	int fifoDescriptionChild;
 	char fifoBuffer[BUFFER_SIZE];
-	char *fifoFileNewConnection;
+	char fifoSecureConnectionNameForClient[BUFFER_SIZE];
 
 	/* Child process variables */
 	pid_t childPid;
@@ -41,6 +41,7 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
 	}
 	*/
+
 	/* Control */
 	printf("--%f - %d\n", resulution, maxClient);
 
@@ -55,7 +56,7 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	if ((fifoFileDescriptionMain = open(GTU_PRO_NAM, O_RDWR)) < 0)
+	if ((fifoDescriptionMainConnection = open(GTU_PRO_NAM, O_RDWR)) < 0)
 	{
 		printf("Cannot open fifo file, please try again\n");
 		printf("We'll exiting..\n");
@@ -65,60 +66,59 @@ int main(int argc, char *argv[])
 		printf("Server working and waiting client(s)..\n");
 
 	/*
-	Waiting clients
+		Waiting clients *****************************
 	*/
 	while (1)
 	{
+
 		printf("Client connet now: %d\n", identity);
-		/*
-		We'll waiting request protocol for continue..
-		*/
-		if (read(fifoFileDescriptionMain, &request, sizeof(request)) != sizeof(request))
-			continue;
 
 		/*
-		Close server commant
+			Response
+			We'll waiting request protocol for continue..
 		*/
-		if (strcmp(fifoBuffer, "exit") == 0)
-		{
-			printf("U r fuck'in admin!\nSh.. Shu.. Shut down server..\n");
-			exit(EXIT_SUCCESS);
-		}
+		if (0 < (read(fifoDescriptionMainConnection, &request, sizeof(request)) != sizeof(request)))
+			continue;
 
 		printf("Client pid: %d connecting..\n", request.pid);
 
-
-
-		/* Create new identity */
-		identity++;
-		response.identityNo = identity;
-		write(fifoFileDescriptionMain, &response, sizeof(response));
-
-		printf("%s\n", fifoBuffer);
-
 		/*
-		Creating secure named pipe for comminucate
+			Creating secure named pipe for comminucate
 		*/
-		snprintf(fifoBuffer, GTU_PRO_LEN, GTU_PRO_SEC, request.pid);
-		strcpy(fifoFileNewConnection, fifoBuffer);
-		if ((mkfifo(fifoFileNewConnection, 0666) < 0 && (errno != EEXIST)) || (childPid = fork()) < 0)
+		snprintf(fifoSecureConnectionNameForClient, GTU_PRO_LEN, GTU_PRO_SEC, request.pid);
+printf("%s\n", fifoSecureConnectionNameForClient);
+		if (mkfifo(fifoSecureConnectionNameForClient, 0666) < 0 && (errno != EEXIST))
 		{
-			perror("Error: ");
+			printf("Connot connect!\n");
+			continue;
+		}
+
+		if ( (childPid = fork()) < 0)
+		{
+			perror("Error 4198");
 			continue;
 		}
 		else
 		{
-			/*
-			Child process
-			*/
-
+			if (childPid) /* Parent process */
 			{
-				chil open(fifoFileNewConnection, O_RDWR);
-				strcpy(fifoBuffer, "Merhaba ben child!\n");
-				write(fifoFileDescriptionChild, fifoBuffer, BUFFER_SIZE);
-				close(fifoFileDescriptionChild);
+				/* Create new identity */
+				identity++;
+				response.identityNo = identity;
+				strcpy(response.identity, fifoSecureConnectionNameForClient);
+				write(fifoDescriptionMainConnection, &response, sizeof(response));
+				wait(NULL);
+			}
+			else /* Child process */
+			{
 
-				identity--;
+				fifoDescriptionChild = open(fifoSecureConnectionNameForClient, O_RDWR);
+				if (write(fifoDescriptionChild, "Welcome. I'm chil process\n", 
+					sizeof("Welcome. I'm chil process\n")) < 0)
+				{
+					perror("Error 154");
+				}
+
 				exit(EXIT_SUCCESS);
 			}
 
@@ -126,13 +126,18 @@ int main(int argc, char *argv[])
 
 	} /* end while */
 
-	  /*
-	  Close and delete fifo files
-	  */
-	close(fifoFileDescriptionMain);
+	/*
+	Close and delete fifo files
+	*/
+	close(fifoDescriptionChild);
+	close(fifoDescriptionMainConnection);
 	unlink("Connection");
 
-	wait(NULL);
+	int childProcessCount;
+	while (0 < (childPid = wait(NULL)))
+	{
+		printf("-Chil: %d completed. Total %d\n", (int)getpid(), childProcessCount++);
+	}
 
 	return 1;
 }

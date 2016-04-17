@@ -13,5 +13,6 @@ struct _request
 struct _response
 {
 	int identityNo;
+	char identity[GTU_PRO_LEN];
 
 };
