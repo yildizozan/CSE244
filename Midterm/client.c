@@ -17,8 +17,9 @@ int main()
 
 	/* Fifo variables */
 	int fifoFileDescriptionMain;
-	int fifoFileDescriptionMainNew;
+	int fifoFileDescriptionSafeConn;
 	char fifoBuffer[BUFFER_SIZE];
+	char *fifoFileNewConnection;
 
 	/* Control printf */
 	printf("-%d\n", (int)getpid());
@@ -34,28 +35,26 @@ int main()
 	}
 	else
 	{
+		/*
+		Create request protocol
+		Client send pid number to server.
+		Server create new fifo with client pid number.
+		*/
+		request.pid = (int)getpid();
+		if (write(fifoFileDescriptionMain, &request, sizeof(request)) < 0)
+			perror("Error code 849:");
 
+		if (write(fifoFileDescriptionMain, &response, sizeof(response)) < 0)
+			perror("Error code 516:");
 	}
 
-	/*
-	Create request protocol
-	Client send pid number to server.
-	Server create new fifo with client pid number.
-	*/
-	request.pid = (int)getpid();
-	if (write(fifoFileDescriptionMain, &request, sizeof(request)) < 0)
-		perror("Error code 849:");
+printf("-516: %d\n", response.identityNo);
 
-	if (write(fifoFileDescriptionMain, &response, sizeof(response)) < 0)
-		perror("Error code 516:");
-
-	printf("-342: %d\n", response.identityNo);
-
-	/* Close connection 'Connectionn' fifo filo */
-	if ((fifoFileDescriptionMainNew = open(fifoBuffer, O_RDWR)) < 0)
+	snprintf(fifoFileNewConnection, GTU_PRO_LEN, GTU_PRO_SEC, (int)getpid());
+	if ((fifoFileDescriptionSafeConn = open(fifoBuffer, O_RDWR)) < 0)
 		perror("Error code 342:");
 
-	read(fifoFileDescriptionMainNew, fifoBuffer, sizeof(BUFFER_SIZE));
+	read(fifoFileDescriptionSafeConn, fifoBuffer, sizeof(BUFFER_SIZE));
 
 
 
