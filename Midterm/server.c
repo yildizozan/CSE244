@@ -5,12 +5,34 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
-
+#include "protocol.h"
 
 #define BUFFER_SIZE 4096
 
+int snprintf(char *, size_t, const char *, int);
+int wait(void *);
+
+
 int main(int argc, char *argv[])
 {
+	/* Protocol variables */
+	struct _request request;
+	struct _response response;
+	int identity = 0;
+
+	/* Argumans vaariables */
+	float resulution = atof(argv[1]);
+	int maxClient = atoi(argv[2]);
+
+	/* Fifo status */
+	int fifoFileDescriptionMain;
+	int fifoFileDescriptionChild;
+	char fifoBuffer[BUFFER_SIZE];
+	char *fifoFileNewConnection;
+
+	/* Child process variables */
+	pid_t childPid;
+
 	/*
 	if (argc != 3)
 	{
@@ -19,29 +41,21 @@ int main(int argc, char *argv[])
 	exit(EXIT_FAILURE);
 	}
 	*/
-
-	/* Argumans vaariables */
-	float resulution = atof(argv[1]);
-	int maxClient = atoi(argv[2]);
-
-	/* Fifo status */
-	int fifoFileDescripton;
-	char fifoBuffer[BUFFER_SIZE];
-
-	printf("%f - %d\n", resulution, maxClient);
+	/* Control */
+	printf("--%f - %d\n", resulution, maxClient);
 
 	/*
 	We'll try to create fifo file for connection
 	if there is a fifo connection file, exiting for security
 	*/
-	if (mkfifo("Connection", 0666) < 0 && (errno != EEXIST))
+	if (mkfifo(GTU_PRO_NAM, 0666) < 0 && (errno != EEXIST))
 	{
 		printf("Cannot create 'Connection' fifo file..\n");
 		printf("We'll exiting..\n");
 		exit(EXIT_FAILURE);
 	}
 
-	if ((fifoFileDescripton = open("Connection", O_RDWR)) < 0)
+	if ((fifoFileDescriptionMain = open(GTU_PRO_NAM, O_RDWR)) < 0)
 	{
 		printf("Cannot open fifo file, please try again\n");
 		printf("We'll exiting..\n");
@@ -54,38 +68,71 @@ int main(int argc, char *argv[])
 	Waiting clients
 	*/
 	while (1)
-	{	/* If success */
-		read(fifoFileDescripton, fifoBuffer, sizeof(fifoBuffer));
+	{
+		printf("Client connet now: %d\n", identity);
+		/*
+		We'll waiting request protocol for continue..
+		*/
+		if (read(fifoFileDescriptionMain, &request, sizeof(request)) != sizeof(request))
+			continue;
 
 		/*
 		Close server commant
 		*/
 		if (strcmp(fifoBuffer, "exit") == 0)
 		{
-			printf("U r admin!\nShut down server..\n");
+			printf("U r fuck'in admin!\nSh.. Shu.. Shut down server..\n");
 			exit(EXIT_SUCCESS);
 		}
 
-		printf("Client pid: %s connecting..\n", fifoBuffer);
-
-		strcpy(fifoBuffer, "OK!");
-		write(fifoFileDescripton, fifoBuffer, sizeof(fifoBuffer));
+		printf("Client pid: %d connecting..\n", request.pid);
 
 
 
-		memset(fifoBuffer, 0, BUFFER_SIZE);
+		/* Create new identity */
+		identity++;
+		response.identityNo = identity;
+		write(fifoFileDescriptionMain, &response, sizeof(response));
+
+		printf("%s\n", fifoBuffer);
+
+		/*
+		Creating secure named pipe for comminucate
+		*/
+		snprintf(fifoBuffer, GTU_PRO_LEN, GTU_PRO_SEC, request.pid);
+		strcpy(fifoFileNewConnection, fifoBuffer);
+		if ((mkfifo(fifoFileNewConnection, 0666) < 0 && (errno != EEXIST)) || (childPid = fork()) < 0)
+		{
+			perror("Error: ");
+			continue;
+		}
+		else
+		{
+			/*
+			** Child process
+			*/
+
+			{
+				chil open(fifoFileNewConnection, O_RDWR);
+				strcpy(fifoBuffer, "Merhaba ben child!\n");
+				write(fifoFileDescriptionChild, fifoBuffer, BUFFER_SIZE);
+				close(fifoFileDescriptionChild);
+
+				identity--;
+				exit(EXIT_SUCCESS);
+			}
+
+		} /* end if else open */
 
 	} /* end while */
 
 	  /*
 	  Close and delete fifo files
 	  */
-	close(fifoFileDescripton);
+	close(fifoFileDescriptionMain);
 	unlink("Connection");
+
+	wait(NULL);
 
 	return 1;
 }
-/*
-cd '/root/Desktop/Midterm/'
-
-*/
