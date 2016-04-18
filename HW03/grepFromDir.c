@@ -7,18 +7,14 @@
 #include <fcntl.h>
 #include <string.h>
 
-// Buffers
-#define BUFFER_STREAM		1		// Stream
-#define BUFFER_MINI			1024	// Mini
-#define BUFFER_STANDART		2048	// Standart
-#define BUFFER_LARGE		4096	// Large
-#define BUFFER_ULTRA		8192	// Ultra
+/* BUFFERS */
+#define BUFFER_STREAM	1
+#define BUFFER_SIZE		4096
 
-// Sizes
-#define SIZE_256 256
+/* SIZES */
 #define FILE_NAME_SIZE 256
 
-// Modes
+/* MODES */
 #define READ_ONLY (O_RDONLY) 
 #define WRITE_ONLY (O_WRONLY)
 #define FIFO_PERMS (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
@@ -36,23 +32,10 @@ void readFifo(const char *);
 
 void writeLogFile(const char *);
 
-// Signal
-void SignalHandler(int signo)
-{
-	if (signo == SIGINT)
-	{
-		while(wait(NULL) > 0)
-			kill(0, SIGKILL);
-	}
-
-	writeLogFile("Ctrl + C yakaldığı için program durdu\n");
-
-	return;
-}
 
 int main(int argc, char *argv[])
 {
-	// Using:
+	/* Usage */
 	if (argc != 3)
 	{
 		printf("Using: ./grD [directory] text\n");
@@ -63,143 +46,147 @@ int main(int argc, char *argv[])
 	fileCheck(argv[1], argv[2]);
 
 	return 0;
-}
+} /* end main function */
 
+/***************************************************
+
+	FUNCTION:	fileCheck
+
+	SUPPOSE:	
+
+	COMMENT:
+
+		Olcak olacak olacak o kadar..
+
+****************************************************/
 void fileCheck(char *currentPath, char *searchText)
 {
-	// Folder variables
+	/* Control variables */
+	int status;					/* Pipe for reading */
+
+
+	/* Folder variables */
 	DIR *dir;
 	struct dirent *ent;
 
-	// Fork variable
+	/* Fork variable */
 	pid_t childPid;
 
-	// Pipe variable
+	/* Pipe variable */
 	int pipeFileDescription[2];
 
-	// Fifo variable
-	char fifoFileName[FILE_NAME_SIZE];
-
-	// Try to open folder
+	/* Try to open folder */
 	if ((dir = opendir(currentPath)) == NULL)
 	{
 		perror("opendir");
 		exit(EXIT_FAILURE);
 	}
-	else // Successfull open dir
+	else /* Successfull open dir */
 	{
-		// Reading directioary
+		/* Reading directioary */
 		while ((ent = readdir(dir)) != NULL)
 		{
-			// NO CWD and upper
+			/* NO CWD and upper */
 			if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
 				continue;
-			
-			// Fifo
-			snprintf(fifoFileName, sizeof(fifoFileName), "%d", (int)getppid());
-			// DISABLE: if (mkfifo(fifoFileName, FIFO_PERMS) == -1) perror("mkfifo");
 
-			// Create pipe and child 
+			/* Create pipe and child */
 			if (pipe(pipeFileDescription) < 0 || (childPid = fork()) < 0)
 			{
 				perror("pipe\n");
 				perror("fork\n");
 				exit(EXIT_FAILURE);
 			}
-			else if (childPid) // Parent process
+			else if (childPid) /* Parent process */
 			{
-				// Signal
-				signal(SIGINT, SignalHandler);
-
-				// We'll wait all chil process
-				int childStatus; 
-				waitpid(childPid, &childStatus, 0);
-
-				// Fifo
-
-				// Pipe for reading
-				int status;
-				char results[BUFFER_STANDART];
+				char results[BUFFER_SIZE];
 				close(pipeFileDescription[1]);
 
 				if (0 < (status = read(pipeFileDescription[0], results, sizeof(results))))
-				{
-					writeLogFile(results); // Write pipe file result
-				}
+					writeLogFile(results); /* Write pipe file result */
 
 				close(pipeFileDescription[0]);
 			}
-			else  // Child process
+			else  /* Child process */
 			{
-				// Control for folder
-				if (ent->d_type == DT_DIR) // Is this folder?
+				/* Control for folder */
+				if (ent->d_type == DT_DIR) /* Is this folder? */
 				{
-					// Create new path
-					char newPath[SIZE_256];
+					/* Create new path */
+					char newPath[FILE_NAME_SIZE];
 					strcpy(newPath, currentPath);
 					strcat(newPath, "/");
 					strcat(newPath, ent->d_name);
 
-					// Filecheck new path
+					/* Filecheck new path */
 					fileCheck(newPath, searchText);
 
-					// Successful
 					exit(EXIT_SUCCESS);
 				}
-				else if (ent->d_type == DT_REG) // Is this file
+				else if (ent->d_type == DT_REG) /* Is this file */
 				{
-					// Child name for pipe
-					char childName[BUFFER_MINI];
+					/* Child name for pipe */
+					char childName[BUFFER_SIZE];
 					snprintf(childName, sizeof(childName), "%s - Childpid:%d", ent->d_name, (int)getpid());
 					
-					// Pipe
+					/* Pipe */
 					close(pipeFileDescription[0]);
 
-					// Searching new path
+					/* Searching new path */
 					searchInFile(currentPath, ent->d_name, searchText, pipeFileDescription[1]);
 
 					close(pipeFileDescription[1]);
 
-					// Successful
 					exit(EXIT_SUCCESS);
 				}
 
-			} // end else
+			} /* end else */
 
-		} // end while
+		} /* end while */
 
 		closedir(dir);
 
-	} // end else
+	} /* end if else (opendir) */
 
-}
+} /* enf function (chechFile) */
 
+/***************************************************
+
+	FUNCTION:	searchInFile
+
+	SUPPOSE:	Searching text in file
+
+	COMMENT:
+
+		Olcak olacak olacak o kadar..
+
+****************************************************/
 int searchInFile(const char *filePath, const char *fileName, const char *searchingWord, const int pipeFileDescription)
 {
-	// Variables
-	int currentLineNumber = 1,		// currentLineNumber is line counter
-		curentColumnNumber = 1,		// curentColumnNumber is column counter
-		countLetter = 0,			// countLetter need to while loop
-		totalWord = 0;				// totalWord find searching text in the file
+	/* Variables */
+	int currentLineNumber = 1,		/* currentLineNumber is line counter */
+		curentColumnNumber = 1,		/* curentColumnNumber is column counter */
+		countLetter = 0,			/* countLetter need to while loop */
+		totalWord = 0;				/* totalWord find searching text in the file */
 
 	char currentChar;
 
-	// Temp file variables
-	char tempFileText[BUFFER_STANDART];
-	char tempFileName[SIZE_256];
+	/* Temp file variables */
+	char tempFileText[BUFFER_SIZE];
+	char tempFileName[FILE_NAME_SIZE];
 
-	// Create file path
-	char newPath[SIZE_256];
+	/* Create file path */
+	char newPath[FILE_NAME_SIZE];
 	strcpy(newPath, filePath);
 	strcat(newPath, "/");
 	strcat(newPath, fileName);
 
 
-		// Openin temp file for result
+		/* Openin temp file for result */
 		snprintf(tempFileName, sizeof(tempFileName), "%d.txt", getpid());
 		int tempFileDescriptor = open(tempFileName, FILE_CREAT_WRITE_APPEND);
 
-		// Write header for result temp file
+		/* Write header for result temp file */
 		snprintf(
 			tempFileText,
 			sizeof(tempFileText),
@@ -208,7 +195,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 		);
 		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
-	// Opening file for searching (READ ONLY MODE)
+	/* Opening file for searching (READ ONLY MODE) */
 	int openFileForReadingHandle = open(newPath, O_RDONLY);
 
 	if (openFileForReadingHandle == -1)
@@ -231,7 +218,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 				curentColumnNumber = 1;
 			}
 
-			// Control word
+			/* Control word */
 			if (currentChar == searchingWord[countArgv])
 			{
 				++countLetter;
@@ -241,16 +228,16 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 				{
 					++totalWord;
 					
-					// Results are writing to temp file.
+					/* Results are writing to temp file. */
 					snprintf(tempFileText,
 						sizeof(tempFileText),
 						"\t%d line, %d column found.\n",
 						currentLineNumber,
-						curentColumnNumber - strlen(searchingWord)
+						curentColumnNumber - (int)strlen(searchingWord)
 					);
 					write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
-					// Must be zero
+					/* Must be zero */
 					countLetter = 0;
 				}
 			}
@@ -260,7 +247,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 				countArgv = 0;
 			}
 
-		} // end while
+		} /* end while */
 
 		// End of file
 		snprintf(tempFileText, sizeof(tempFileText), "------------------------------------\n");
@@ -297,24 +284,17 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 
 } // end function searchInFile
 
-//
-//	FUNCTION:	writePipe
-//
-//	SUPPOSE:	All results are writing from temp file to pipe file
-//
-//	COMMENTS(TR)
-//
-void writePipe(const int tempFileDescriptor, const int pipeFileHandle)
-{
-	// Variable
-	char tempText[BUFFER_ULTRA];
+/***************************************************
 
-	read(tempFileDescriptor, tempText, BUFFER_ULTRA);
-	write(pipeFileHandle, tempText, BUFFER_ULTRA);
+	FUNCTION:	writeLogFile
 
-	return;
-}
+	SUPPOSE:	Searching text in file
 
+	COMMENT:
+
+		Olcak olacak olacak o kadar..
+
+****************************************************/
 void writeLogFile(const char *results)
 {
 	int logFileHandle = open("gfD.log", FILE_CREAT_WRITE_APPEND);
@@ -324,47 +304,24 @@ void writeLogFile(const char *results)
 	return;
 }
 
-//
-//	FUNCTION:	newPath
-//
-//	SUPPOSE:	Create new path for file and folder
-//
-//	COMMENTS(TR)
-//
-const char *createNewPath(const char *oldPath, const char *name)
+/***************************************************
+
+	FUNCTION:	writePipe
+
+	SUPPOSE:	Copy from temp file to pipe 
+
+	COMMENT:
+
+		Olcak olacak olacak o kadar..
+
+****************************************************/
+void writePipe(const int tempFileDescriptor, const int pipeFileHandle)
 {
-	// Create file path
-	char *newPath;
-	strcpy(newPath, oldPath);
-	strcat(newPath, "/");
-	strcat(newPath, name);
+	// Variable
+	char tempText[BUFFER_SIZE];
 
-	return newPath;
-}
+	read(tempFileDescriptor, tempText, BUFFER_SIZE);
+	write(pipeFileHandle, tempText, BUFFER_SIZE);
 
-void writeFifo(const char *resultsFromPipe, const char *fifoFileName)
-{
-	char fifoFilename[FILE_NAME_SIZE];
-	snprintf(fifoFilename, sizeof(fifoFilename), "%d", getppid());
-
-	int fifoDescripton = open(fifoFileName, WRITE_ONLY);
-
-	write(fifoDescripton, resultsFromPipe, strlen(resultsFromPipe));
-
-	close(fifoDescripton);
-}
-
-void readFifo(const char *fifoFileName)
-{
-	char fifoFilename[FILE_NAME_SIZE];
-	snprintf(fifoFilename, sizeof(fifoFilename), "%d", getpid());
-
-	char fifoBuffer[BUFFER_STANDART];
-
-	int fifoDescripton = open(fifoFileName, READ_ONLY);
-
-	read(fifoDescripton, fifoBuffer, strlen(fifoBuffer));
-	printf("%s\n", fifoBuffer);
-
-	close(fifoDescripton);
+	return;
 }
