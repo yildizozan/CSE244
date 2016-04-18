@@ -15,34 +15,18 @@
 /* SIZES */
 #define FILE_NAME_SIZE 256
 
-/* MODES */
-#define READ_ONLY (O_RDONLY) 
-#define WRITE_ONLY (O_WRONLY)
-#define FIFO_PERMS (S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH)
-#define FILE_CREAT_WRITE_APPEND (O_CREAT | O_WRONLY | O_APPEND)
-
 void fileCheck(char *, char *);
 
 int searchInFile(const char *, const char *, const char *, const int);
 
 void writePipe(const int, const int);
 
-void writeFifo(const char *, const char *);
-
-void readFifo(const char *);
-
 void writeLogFile(const char *);
 
 
 int main(int argc, char *argv[])
 {
-	/* Counter */
 	int childCounter = 0;
-
-	/* Fifo variables */
-	char buffer[BUFFER_SIZE];
-	int fifoCurrentDescription;
-	char fifoCurrentName[FILE_NAME_SIZE];
 
 	/* Usage */
 	if (argc != 3)
@@ -57,13 +41,6 @@ int main(int argc, char *argv[])
 	while(0 < wait(NULL))
 		printf("%d child\n", childCounter++);
 
-	/* fifo */
-	/* If there are any data in process's fifo */
-	sprintf(fifoCurrentName, "%d", (int)getpid());
-	if ((fifoCurrentDescription = open(fifoCurrentName, O_RDWR)) != -1)
-		if (0 < read(fifoCurrentDescription, buffer, BUFFER_SIZE))
-			writeLogFile(buffer);
-
 	return 0;
 } /* end main function */
 
@@ -71,7 +48,7 @@ int main(int argc, char *argv[])
 
 	FUNCTION:	fileCheck
 
-	SUPPOSE:	
+	SUPPOSE:
 
 	COMMENT:
 
@@ -93,11 +70,13 @@ void fileCheck(char *currentPath, char *searchText)
 	/* Pipe variable */
 	int pipeDescription[2];
 
+	/* Fork variable */
+	char fifoUpperName[FILE_NAME_SIZE];
+	char fifoCurrentName[FILE_NAME_SIZE];
+
 	/* Fifo variables */
 	int fifoCurrentDescription;
 	int fifoUpperDescription;
-	char fifoUpperName[FILE_NAME_SIZE];
-	char fifoCurrentName[FILE_NAME_SIZE];
 
 	/* Try to open folder */
 	if ((dir = opendir(currentPath)) == NULL)
@@ -130,7 +109,10 @@ void fileCheck(char *currentPath, char *searchText)
 				}
 				else
 				{
-					if (childPid) /* Parent process */
+					/*
+					 * 	Child process
+					 */
+					if (childPid)
 					{
 						sprintf(fifoCurrentName, "%d", (int)getpid());
 						sprintf(fifoUpperName, "%d", (int)getppid());
@@ -138,33 +120,45 @@ void fileCheck(char *currentPath, char *searchText)
 						close(pipeDescription[1]);
 
 						/* Control for is process main or not? */
-						if ((fifoUpperDescription = open(fifoUpperName, O_RDWR)) != -1)
+						if (0 < (fifoUpperDescription = open(fifoUpperName, O_WRONLY | O_NONBLOCK)))
 						{
-							printf("-----CHILD !!\n");
-							printf("--pipe\n");
+							printf("child pipe\n");
 							/* If there are any data in pipe */
 							if (0 < read(pipeDescription[0], buffer, BUFFER_SIZE))
 								write(fifoUpperDescription, buffer, BUFFER_SIZE);
-							printf("--fifo\n");
-							if ((fifoCurrentDescription = open(fifoCurrentName, O_RDWR)) != -1)
+
+							printf("child fifo\n");
+							if (0 < (fifoCurrentDescription = open(fifoCurrentName, O_RDONLY | O_NONBLOCK)))
 							{
-								printf("--cuurent fifo\n");
+								printf("cuurent fifo\n");
 								if (0 < read(fifoCurrentDescription, buffer, BUFFER_SIZE))
 									write(fifoUpperDescription, buffer, BUFFER_SIZE);
 							}
+
+							close(fifoCurrentDescription);
+							close(fifoUpperDescription);
 						}
+
+						/*
+						 * 	Parent process
+						 */
 						else
 						{
+							printf("main pipe\n");
 							/* If there are any data in pipe */
 							if (0 < read(pipeDescription[0], buffer, BUFFER_SIZE))
 								writeLogFile(buffer);
+							printf("main fifo\n");
+							/* If there are any data in process's fifo */
+							if (0 < (fifoCurrentDescription = open(fifoCurrentName, O_RDONLY | O_NONBLOCK)))
+								if (0 < read(fifoCurrentDescription, buffer, BUFFER_SIZE))
+									writeLogFile(buffer);
 
 						} /* end if else (open fifo) */
 
 						/* Close */
 						close(pipeDescription[0]);
-						close(fifoCurrentDescription);
-						close(fifoUpperDescription);
+
 					}
 					else  /* Child process */
 					{
@@ -187,7 +181,7 @@ void fileCheck(char *currentPath, char *searchText)
 							/* Child name for pipe */
 							char childName[BUFFER_SIZE];
 							snprintf(childName, sizeof(childName), "%s - Childpid:%d", ent->d_name, (int)getpid());
-							
+
 							/* Pipe */
 							close(pipeDescription[0]);
 
@@ -248,7 +242,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 
 		/* Openin temp file for result */
 		snprintf(tempFileName, sizeof(tempFileName), "%d.txt", getpid());
-		int tempFileDescriptor = open(tempFileName, FILE_CREAT_WRITE_APPEND);
+		int tempFileDescriptor = open(tempFileName, O_CREAT | O_WRONLY | O_APPEND);
 
 		/* Write header for result temp file */
 		snprintf(
@@ -260,9 +254,9 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
 	/* Opening file for searching (READ ONLY MODE) */
-	int openFileForReadingHandle;
+	int openFileForReadingHandle = open(newPath, O_RDONLY);
 
-	if ((openFileForReadingHandle = open(newPath, O_RDONLY)) == -1)
+	if (openFileForReadingHandle == -1)
 	{
 		printf("Error for opening file.\nExiting..\n");
 		return 1;
@@ -273,7 +267,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 
 		while (read(openFileForReadingHandle, &currentChar, BUFFER_STREAM) > 0)
 		{
-			if (currentChar != '\0') 
+			if (currentChar != '\0')
 				++curentColumnNumber;
 
 			if (currentChar == '\n')
@@ -291,7 +285,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 				if (countLetter == strlen(searchingWord))
 				{
 					++totalWord;
-					
+
 					/* Results are writing to temp file. */
 					snprintf(tempFileText,
 						sizeof(tempFileText),
@@ -361,7 +355,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 ****************************************************/
 void writeLogFile(const char *results)
 {
-	int logFileHandle = open("gfD.log", FILE_CREAT_WRITE_APPEND);
+	int logFileHandle = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND);
 	write(logFileHandle, results, strlen(results));
 	close(logFileHandle);
 
@@ -372,7 +366,7 @@ void writeLogFile(const char *results)
 
 	FUNCTION:	writePipe
 
-	SUPPOSE:	Copy from temp file to pipe 
+	SUPPOSE:	Copy from temp file to pipe
 
 	COMMENT:
 
@@ -394,7 +388,7 @@ void writePipe(const int tempFileDescription, const int pipeFileHandle)
 
 	FUNCTION:	writeFifo
 
-	SUPPOSE:	Copy text from pipe to fifo 
+	SUPPOSE:	Copy text from pipe to fifo
 
 	COMMENT:
 
