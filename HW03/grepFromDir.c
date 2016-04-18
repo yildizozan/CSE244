@@ -36,7 +36,13 @@ void writeLogFile(const char *);
 
 int main(int argc, char *argv[])
 {
+	/* Counter */
 	int childCounter = 0;
+
+	/* Fifo variables */
+	char buffer[BUFFER_SIZE];
+	int fifoCurrentDescription;
+	char fifoCurrentName[FILE_NAME_SIZE];
 
 	/* Usage */
 	if (argc != 3)
@@ -50,6 +56,13 @@ int main(int argc, char *argv[])
 
 	while(0 < wait(NULL))
 		printf("%d child\n", childCounter++);
+
+	/* fifo */
+	/* If there are any data in process's fifo */
+	sprintf(fifoCurrentName, "%d", (int)getpid());
+	if ((fifoCurrentDescription = open(fifoCurrentName, O_RDWR)) != -1)
+		if (0 < read(fifoCurrentDescription, buffer, BUFFER_SIZE))
+			writeLogFile(buffer);
 
 	return 0;
 } /* end main function */
@@ -67,9 +80,6 @@ int main(int argc, char *argv[])
 ****************************************************/
 void fileCheck(char *currentPath, char *searchText)
 {
-	/* Control variables */
-	int status;
-
 	/* Buffer */
 	char buffer[BUFFER_SIZE];
 
@@ -83,11 +93,11 @@ void fileCheck(char *currentPath, char *searchText)
 	/* Pipe variable */
 	int pipeDescription[2];
 
-	/* Fork variable */
+	/* Fifo variables */
+	int fifoCurrentDescription;
+	int fifoUpperDescription;
 	char fifoUpperName[FILE_NAME_SIZE];
 	char fifoCurrentName[FILE_NAME_SIZE];
-
-	int fifoDescription;
 
 	/* Try to open folder */
 	if ((dir = opendir(currentPath)) == NULL)
@@ -127,45 +137,34 @@ void fileCheck(char *currentPath, char *searchText)
 
 						close(pipeDescription[1]);
 
-						/* If there are any data in pipe */
-						if (0 < read(pipeDescription[0], buffer, BUFFER_SIZE))
+						/* Control for is process main or not? */
+						if ((fifoUpperDescription = open(fifoUpperName, O_RDWR)) != -1)
 						{
-							/*
-								Main process not child
-								so we'll need to check main or child
-								if main process write log file,
-								if child process send all pipe information upper process
-							*/
-							if (0 < (fifoDescription = open(fifoUpperName, O_RDWR)))
+							printf("-----CHILD !!\n");
+							printf("--pipe\n");
+							/* If there are any data in pipe */
+							if (0 < read(pipeDescription[0], buffer, BUFFER_SIZE))
+								write(fifoUpperDescription, buffer, BUFFER_SIZE);
+							printf("--fifo\n");
+							if ((fifoCurrentDescription = open(fifoCurrentName, O_RDWR)) != -1)
 							{
-								printf("-----CHILD !!\n");
-								write(fifoDescription, buffer, BUFFER_SIZE);
-
-							}
-							else
-							{
-								printf("+++++MAIN !!\n");
-								writeLogFile(buffer);
-							}
-
-						} /* end if (reading pipe) */
-						
-						/* If there are any data in process's fifo */
-						if (0 < (fifoDescription = open(fifoCurrentName, O_RDWR)))
-						{
-							if (0 < read(fifoDescription, buffer, BUFFER_SIZE))
-							{
-								/* Process's upper fifo file */
-								if (0 < (fifoDescription = open(fifoUpperName, O_RDWR)))
-									read(fifoDescription, buffer, BUFFER_SIZE);
+								printf("--cuurent fifo\n");
+								if (0 < read(fifoCurrentDescription, buffer, BUFFER_SIZE))
+									write(fifoUpperDescription, buffer, BUFFER_SIZE);
 							}
 						}
+						else
+						{
+							/* If there are any data in pipe */
+							if (0 < read(pipeDescription[0], buffer, BUFFER_SIZE))
+								writeLogFile(buffer);
 
-
+						} /* end if else (open fifo) */
 
 						/* Close */
 						close(pipeDescription[0]);
-						close(fifoDescription);
+						close(fifoCurrentDescription);
+						close(fifoUpperDescription);
 					}
 					else  /* Child process */
 					{
@@ -261,9 +260,9 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
 	/* Opening file for searching (READ ONLY MODE) */
-	int openFileForReadingHandle = open(newPath, O_RDONLY);
+	int openFileForReadingHandle;
 
-	if (openFileForReadingHandle == -1)
+	if ((openFileForReadingHandle = open(newPath, O_RDONLY)) == -1)
 	{
 		printf("Error for opening file.\nExiting..\n");
 		return 1;
