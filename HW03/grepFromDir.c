@@ -6,10 +6,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <string.h>
+#include <errno.h>
 
 /* BUFFERS */
 #define BUFFER_STREAM	1
-#define BUFFER_SIZE		4096
+#define BUFFER_SIZE		2048
 
 /* SIZES */
 #define FILE_NAME_SIZE 256
@@ -35,6 +36,8 @@ void writeLogFile(const char *);
 
 int main(int argc, char *argv[])
 {
+	int childCounter = 0;
+
 	/* Usage */
 	if (argc != 3)
 	{
@@ -44,6 +47,9 @@ int main(int argc, char *argv[])
 
 
 	fileCheck(argv[1], argv[2]);
+
+	while(0 < wait(NULL))
+		printf("%d child\n", childCounter++);
 
 	return 0;
 } /* end main function */
@@ -62,8 +68,10 @@ int main(int argc, char *argv[])
 void fileCheck(char *currentPath, char *searchText)
 {
 	/* Control variables */
-	int status;					/* Pipe for reading */
+	int status;
 
+	/* Buffer */
+	char buffer[BUFFER_SIZE];
 
 	/* Folder variables */
 	DIR *dir;
@@ -73,12 +81,18 @@ void fileCheck(char *currentPath, char *searchText)
 	pid_t childPid;
 
 	/* Pipe variable */
-	int pipeFileDescription[2];
+	int pipeDescription[2];
+
+	/* Fork variable */
+	char fifoUpperName[FILE_NAME_SIZE];
+	char fifoCurrentName[FILE_NAME_SIZE];
+
+	int fifoDescription;
 
 	/* Try to open folder */
 	if ((dir = opendir(currentPath)) == NULL)
 	{
-		perror("opendir");
+		perror("Error 122");
 		exit(EXIT_FAILURE);
 	}
 	else /* Successfull open dir */
@@ -91,56 +105,107 @@ void fileCheck(char *currentPath, char *searchText)
 				continue;
 
 			/* Create pipe and child */
-			if (pipe(pipeFileDescription) < 0 || (childPid = fork()) < 0)
+			sprintf(fifoCurrentName, "%d", (int)getpid());
+			if (mkfifo(fifoCurrentName, 0666) < 0 && (errno != EEXIST))
 			{
-				perror("pipe\n");
-				perror("fork\n");
+				perror("Error 222");
 				exit(EXIT_FAILURE);
 			}
-			else if (childPid) /* Parent process */
+			else
 			{
-				char results[BUFFER_SIZE];
-				close(pipeFileDescription[1]);
-
-				if (0 < (status = read(pipeFileDescription[0], results, sizeof(results))))
-					writeLogFile(results); /* Write pipe file result */
-
-				close(pipeFileDescription[0]);
-			}
-			else  /* Child process */
-			{
-				/* Control for folder */
-				if (ent->d_type == DT_DIR) /* Is this folder? */
+				if (pipe(pipeDescription) < 0 || (childPid = fork()) < 0)
 				{
-					/* Create new path */
-					char newPath[FILE_NAME_SIZE];
-					strcpy(newPath, currentPath);
-					strcat(newPath, "/");
-					strcat(newPath, ent->d_name);
-
-					/* Filecheck new path */
-					fileCheck(newPath, searchText);
-
-					exit(EXIT_SUCCESS);
+					perror("Error 378");
+					exit(EXIT_FAILURE);
 				}
-				else if (ent->d_type == DT_REG) /* Is this file */
+				else
 				{
-					/* Child name for pipe */
-					char childName[BUFFER_SIZE];
-					snprintf(childName, sizeof(childName), "%s - Childpid:%d", ent->d_name, (int)getpid());
-					
-					/* Pipe */
-					close(pipeFileDescription[0]);
+					if (childPid) /* Parent process */
+					{
+						sprintf(fifoCurrentName, "%d", (int)getpid());
+						sprintf(fifoUpperName, "%d", (int)getppid());
 
-					/* Searching new path */
-					searchInFile(currentPath, ent->d_name, searchText, pipeFileDescription[1]);
+						close(pipeDescription[1]);
 
-					close(pipeFileDescription[1]);
+						/* If there are any data in pipe */
+						if (0 < read(pipeDescription[0], buffer, BUFFER_SIZE))
+						{
+							/*
+								Main process not child
+								so we'll need to check main or child
+								if main process write log file,
+								if child process send all pipe information upper process
+							*/
+							if (0 < (fifoDescription = open(fifoUpperName, O_RDWR)))
+							{
+								printf("-----CHILD !!\n");
+								write(fifoDescription, buffer, BUFFER_SIZE);
 
-					exit(EXIT_SUCCESS);
-				}
+							}
+							else
+							{
+								printf("+++++MAIN !!\n");
+								writeLogFile(buffer);
+							}
 
-			} /* end else */
+						} /* end if (reading pipe) */
+						
+						/* If there are any data in process's fifo */
+						if (0 < (fifoDescription = open(fifoCurrentName, O_RDWR)))
+						{
+							if (0 < read(fifoDescription, buffer, BUFFER_SIZE))
+							{
+								/* Process's upper fifo file */
+								if (0 < (fifoDescription = open(fifoUpperName, O_RDWR)))
+									read(fifoDescription, buffer, BUFFER_SIZE);
+							}
+						}
+
+
+
+						/* Close */
+						close(pipeDescription[0]);
+						close(fifoDescription);
+					}
+					else  /* Child process */
+					{
+						/* Control for folder */
+						if (ent->d_type == DT_DIR) /* Is this folder? */
+						{
+							/* Create new path */
+							char newPath[FILE_NAME_SIZE];
+							strcpy(newPath, currentPath);
+							strcat(newPath, "/");
+							strcat(newPath, ent->d_name);
+
+							/* Filecheck new path */
+							fileCheck(newPath, searchText);
+
+							exit(EXIT_SUCCESS);
+						}
+						else if (ent->d_type == DT_REG) /* Is this file */
+						{
+							/* Child name for pipe */
+							char childName[BUFFER_SIZE];
+							snprintf(childName, sizeof(childName), "%s - Childpid:%d", ent->d_name, (int)getpid());
+							
+							/* Pipe */
+							close(pipeDescription[0]);
+
+							/* Searching new path */
+							searchInFile(currentPath, ent->d_name, searchText, pipeDescription[1]);
+
+							close(pipeDescription[1]);
+
+							exit(EXIT_SUCCESS);
+
+						} /* end if else (dirent type) */
+
+					} /* end else (chil pid control)*/
+
+				} /* end if else (pipe) */
+
+			} /* end if else (fifo) */
 
 		} /* end while */
 
@@ -161,7 +226,7 @@ void fileCheck(char *currentPath, char *searchText)
 		Olcak olacak olacak o kadar..
 
 ****************************************************/
-int searchInFile(const char *filePath, const char *fileName, const char *searchingWord, const int pipeFileDescription)
+int searchInFile(const char *filePath, const char *fileName, const char *searchingWord, const int pipeDescription)
 {
 	/* Variables */
 	int currentLineNumber = 1,		/* currentLineNumber is line counter */
@@ -269,7 +334,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 			tempFileDescriptor = open(tempFileName, O_RDONLY);
 
 			// Write from temp file to pipe
-			writePipe(tempFileDescriptor, pipeFileDescription);
+			writePipe(tempFileDescriptor, pipeDescription);
 
 			// Close temp file
 			close(tempFileDescriptor);
@@ -315,13 +380,31 @@ void writeLogFile(const char *results)
 		Olcak olacak olacak o kadar..
 
 ****************************************************/
-void writePipe(const int tempFileDescriptor, const int pipeFileHandle)
+void writePipe(const int tempFileDescription, const int pipeFileHandle)
 {
 	// Variable
 	char tempText[BUFFER_SIZE];
 
-	read(tempFileDescriptor, tempText, BUFFER_SIZE);
+	read(tempFileDescription, tempText, BUFFER_SIZE);
 	write(pipeFileHandle, tempText, BUFFER_SIZE);
 
 	return;
 }
+
+/***************************************************
+
+	FUNCTION:	writeFifo
+
+	SUPPOSE:	Copy text from pipe to fifo 
+
+	COMMENT:
+
+		Olcak olacak olacak o kadar..
+
+****************************************************/
+/*
+void writeFifo(const char *fifoDescription, const int a)
+{
+
+}
+*/
