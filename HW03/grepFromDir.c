@@ -28,6 +28,11 @@ int main(int argc, char *argv[])
 {
 	int childCounter = 0;
 
+	/* Buffer */
+	char buffer[BUFFER_SIZE];
+	char fifoCurrentName[FILE_NAME_SIZE];
+	int fifoCurrentDescription;
+
 	/* Usage */
 	if (argc != 3)
 	{
@@ -40,6 +45,11 @@ int main(int argc, char *argv[])
 
 	while(0 < wait(NULL))
 		printf("%d child\n", childCounter++);
+
+	/* If there are any data in process's fifo */
+	if (0 < (fifoCurrentDescription = open(fifoCurrentName, O_RDONLY)))
+		if (0 < read(fifoCurrentDescription, buffer, BUFFER_SIZE))
+			writeLogFile(buffer);
 
 	return 0;
 } /* end main function */
@@ -74,10 +84,6 @@ void fileCheck(char *currentPath, char *searchText)
 	char fifoUpperName[FILE_NAME_SIZE];
 	char fifoCurrentName[FILE_NAME_SIZE];
 
-	/* Fifo variables */
-	int fifoCurrentDescription;
-	int fifoUpperDescription;
-
 	/* Try to open folder */
 	if ((dir = opendir(currentPath)) == NULL)
 	{
@@ -93,112 +99,72 @@ void fileCheck(char *currentPath, char *searchText)
 			if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
 				continue;
 
-			/* Create pipe and child */
-			sprintf(fifoCurrentName, "%d", (int)getpid());
-			if (mkfifo(fifoCurrentName, 0666) < 0 && (errno != EEXIST))
+			/*
+				Is it folder?
+			*/
+			if (ent->d_type == DT_DIR) /* Is this folder? */
 			{
-				perror("Error 222");
-				exit(EXIT_FAILURE);
+				/* Create pipe and child */
+				sprintf(fifoCurrentName, "%d", (int)getpid());
+				if ((mkfifo(fifoCurrentName, 0666) < 0 && (errno != EEXIST)) || (childPid = fork()) < 0)
+				{
+					perror("Error 222");
+					exit(EXIT_FAILURE);
+				}
+
+				/* Create new path */
+				char newPath[FILE_NAME_SIZE];
+				strcpy(newPath, currentPath);
+				strcat(newPath, "/");
+				strcat(newPath, ent->d_name);
+
+				/* Filecheck new path */
+				fileCheck(newPath, searchText);
+
+				unlink(fifoCurrentName);
+
+				exit(EXIT_SUCCESS);
+
+
 			}
-			else
+
+			/*
+				File?
+			*/
+			else if (ent->d_type == DT_REG)
 			{
 				if (pipe(pipeDescription) < 0 || (childPid = fork()) < 0)
 				{
 					perror("Error 378");
 					exit(EXIT_FAILURE);
 				}
+
+				/*
+				*	Parent
+				*/
+				if (childPid)
+				{
+					close(pipeDescription[1]);
+					read(pipeDescription[0], buffer, BUFFER_SIZE);
+					close(pipeDescription[0]);
+				}
+				/*
+				*	Child
+				*/
 				else
 				{
-					/*
-					 * 	Child process
-					 */
-					if (childPid)
-					{
-						sprintf(fifoCurrentName, "%d", (int)getpid());
-						sprintf(fifoUpperName, "%d", (int)getppid());
+					close(pipeDescription[0]);
 
-						close(pipeDescription[1]);
+					/* Searching new path */
+					searchInFile(currentPath, ent->d_name, searchText, pipeDescription[1]);
 
-						/* Control for is process main or not? */
-						if (0 < (fifoUpperDescription = open(fifoUpperName, O_WRONLY | O_NONBLOCK)))
-						{
-							printf("child pipe\n");
-							/* If there are any data in pipe */
-							if (0 < read(pipeDescription[0], buffer, BUFFER_SIZE))
-								write(fifoUpperDescription, buffer, BUFFER_SIZE);
+					close(pipeDescription[1]);
 
-							printf("child fifo\n");
-							if (0 < (fifoCurrentDescription = open(fifoCurrentName, O_RDONLY | O_NONBLOCK)))
-							{
-								printf("cuurent fifo\n");
-								if (0 < read(fifoCurrentDescription, buffer, BUFFER_SIZE))
-									write(fifoUpperDescription, buffer, BUFFER_SIZE);
-							}
+					exit(EXIT_SUCCESS);
+				}
 
-							close(fifoCurrentDescription);
-							close(fifoUpperDescription);
-						}
 
-						/*
-						 * 	Parent process
-						 */
-						else
-						{
-							printf("main pipe\n");
-							/* If there are any data in pipe */
-							if (0 < read(pipeDescription[0], buffer, BUFFER_SIZE))
-								writeLogFile(buffer);
-							printf("main fifo\n");
-							/* If there are any data in process's fifo */
-							if (0 < (fifoCurrentDescription = open(fifoCurrentName, O_RDONLY | O_NONBLOCK)))
-								if (0 < read(fifoCurrentDescription, buffer, BUFFER_SIZE))
-									writeLogFile(buffer);
-
-						} /* end if else (open fifo) */
-
-						/* Close */
-						close(pipeDescription[0]);
-
-					}
-					else  /* Child process */
-					{
-						/* Control for folder */
-						if (ent->d_type == DT_DIR) /* Is this folder? */
-						{
-							/* Create new path */
-							char newPath[FILE_NAME_SIZE];
-							strcpy(newPath, currentPath);
-							strcat(newPath, "/");
-							strcat(newPath, ent->d_name);
-
-							/* Filecheck new path */
-							fileCheck(newPath, searchText);
-
-							exit(EXIT_SUCCESS);
-						}
-						else if (ent->d_type == DT_REG) /* Is this file */
-						{
-							/* Child name for pipe */
-							char childName[BUFFER_SIZE];
-							snprintf(childName, sizeof(childName), "%s - Childpid:%d", ent->d_name, (int)getpid());
-
-							/* Pipe */
-							close(pipeDescription[0]);
-
-							/* Searching new path */
-							searchInFile(currentPath, ent->d_name, searchText, pipeDescription[1]);
-
-							close(pipeDescription[1]);
-
-							exit(EXIT_SUCCESS);
-
-						} /* end if else (dirent type) */
-
-					} /* end else (chil pid control)*/
-
-				} /* end if else (pipe) */
-
-			} /* end if else (fifo) */
+			} /* end if else (dirent type) */
 
 		} /* end while */
 
