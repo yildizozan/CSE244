@@ -61,13 +61,13 @@ int main(int argc, char *argv[])
 
 	/*****************************
 
-	Server prepearing
+	*	Server prepearing
 
 	*****************************/
 
 	/* Reset active computer table */
 	for (i = 0; i < maxClient; i++)
-		activeClientsTable[i].pid = -1.0;
+		activeClientsTable[i].pid = 0;
 
 	/*
 	We'll try to create fifo file for connection
@@ -91,7 +91,7 @@ int main(int argc, char *argv[])
 
 	/****************************
 
-	Waiting clients
+	*	Waiting clients
 
 	*****************************/
 	while (1)
@@ -109,26 +109,33 @@ int main(int argc, char *argv[])
 			continue;
 
 		/* Create a protocol */
-		printf("PID: %ld olan bilgisayar baglanacak..\n", request.pid);
+		printf("PID: %lu client send request for connect..\n", (unsigned long)request.pid);
 		snprintf(fifoSecureConnectionNameForClient, GTU_PRO_LEN, GTU_PRO_SEC, request.pid);
 
 		/*
 		*	Authentication
 		*/
-		for (i = 0; i < maxClient; ++i)
+		if (activeClients == maxClient)
 		{
-			/*
-			*	Tabloda zaten varmi diye bakiyoruz eger varsa
-			*	Olumsuz yanit gönderiyoruz.
-			*/
-			if (activeClientsTable[i].pid == request.pid)
+			continue;
+		}
+		else
+		{
+			for (i = 0; i < maxClient; ++i)
 			{
-				exist = 1;
-				break;
-			}
+				/*
+				*	Tabloda zaten varmi diye bakiyoruz eger varsa
+				*	Olumsuz yanit gönderiyoruz.
+				*/
+				if (actiiveClientsTable[i].pid == request.pid)
+				{
+					exist = 1;
+					break;
+				}
 
-			if (response.identity == NULL)
-				tempi = i;
+				if (response.identity == NULL)
+					tempi = i;
+			}
 		}
 
 		/*
@@ -140,6 +147,7 @@ int main(int argc, char *argv[])
 			strcpy(response.identity, fifoSecureConnectionNameForClient);
 			response.status = 1;
 			write(fifoDescriptionMainConnection, &response, sizeof(response));
+			activeClients++;
 		}
 		else
 		{
@@ -179,7 +187,7 @@ int main(int argc, char *argv[])
 			}
 			else /* Child process */
 			{
-				long tempPid;
+				size_t tempPid;
 
 				/* Child process wait info about client from server*/
 				close(pipeDescription[0]);
@@ -187,7 +195,7 @@ int main(int argc, char *argv[])
 				tempPid = request.pid;
 				close(pipeDescription[1]);
 
-				printf("%lu\n", request.pid);
+				printf("%lu\n", (unsigned long)request.pid);
 
 				/* Open comminication named pipe */
 				fifoDescriptionChild = open(fifoSecureConnectionNameForClient, O_RDWR);
@@ -229,7 +237,7 @@ int main(int argc, char *argv[])
 	} /* end while */
 
 	  /*
-	  Close and delete fifo files
+	  *	Close and delete fifo files
 	  */
 	close(fifoDescriptionChild);
 	close(fifoDescriptionMainConnection);

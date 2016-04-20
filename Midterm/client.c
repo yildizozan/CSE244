@@ -47,7 +47,6 @@ int main()
 		request.pid = getpid();
 		snprintf(fifoNewSecureConnectionNameForServer, GTU_PRO_LEN, GTU_PRO_SEC, request.pid);
 
-		while (strcmp(fifoNewSecureConnectionNameForServer, response.identity) != 0)
 		{
 			if (write(fifoDescriptionMainConnection, &request, sizeof(request)) < 0)
 				perror("Error code 849:");
@@ -68,8 +67,10 @@ int main()
 			tryConnection++;
 			sleep(1);
 		}
-
-		printf("Connection OK!\n");
+		if (strcmp(fifoNewSecureConnectionNameForServer, response.identity) == 0)
+		{
+			printf("Connection OK!\n");
+		}
 
 	}
 
