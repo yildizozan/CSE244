@@ -17,6 +17,7 @@ int main()
 	/* Protocol variables */
 	struct _request request;
 	struct _response response;
+	struct _CAL CAL;
 	struct _conn conn;
 
 	/* Fifo variables */
@@ -81,12 +82,17 @@ int main()
 	if ((fifoDescriptionNewSecureConnection = open(fifoNewSecureConnectionNameForServer, O_RDWR)) < 0)
 		perror("Error code 342:");
 
+	/* Sending CAL */
+	CAL.pid = getpid();
+	CAL.fi = argv[1];
+	CAL.fj = argv[2];
+	CAL.timeInterval = argv[3];
+	CAL.operand = argv[4];
+
+	write(fifoDescriptionNewSecureConnection, &CAL, sizeof(CAL);
+
 	while (1)
 	{
-		/* Request */
-		conn.pid = getpid();
-		conn.status = 3;
-		write(fifoDescriptionNewSecureConnection, &conn, sizeof(conn));
 
 		/* Response */
 		read(fifoDescriptionNewSecureConnection, &conn, sizeof(conn));
