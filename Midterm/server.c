@@ -33,6 +33,7 @@ int main(int argc, char *argv[])
 	/* Protocol variables */
 	struct _request request;
 	struct _response response;
+	struct _CAL CAL;
 	struct _conn conn;
 
 	/* Pipe variable */
@@ -41,7 +42,6 @@ int main(int argc, char *argv[])
 	/* Fifo status */
 	int fifoDescriptionMainConnection;
 	int fifoDescriptionChild;
-	char fifoBuffer[BUFFER_SIZE];
 	char fifoSecureConnectionNameForClient[GTU_PRO_LEN];
 
 	/* Child process variables */
@@ -136,8 +136,8 @@ int main(int argc, char *argv[])
 		*/
 		if (exist == 0)
 		{
-			addClient(i, request.pid);
-			response.identity = fifoSecureConnectionNameForClient;
+			addClient(tempi, request.pid);
+			strcpy(response.identity, fifoSecureConnectionNameForClient);
 			response.status = 1;
 			write(fifoDescriptionMainConnection, &response, sizeof(response));
 		}
@@ -172,6 +172,7 @@ int main(int argc, char *argv[])
 		{
 			if (childPid) /* Parent process */
 			{
+				/* Server send info about client to child process*/
 				close(pipeDescription[0]);
 				write(pipeDescription[1], &request.pid, sizeof(request.pid));
 				close(pipeDescription[1]);
@@ -180,21 +181,30 @@ int main(int argc, char *argv[])
 			{
 				long tempPid;
 
+				/* Child process wait info about client from server*/
 				close(pipeDescription[0]);
-				read(pipeDescription[1], &request.pid, sizeof(request.pid));
+				read(pipeDescription[1], &request, sizeof(request));
 				tempPid = request.pid;
 				close(pipeDescription[1]);
+
+				printf("%lu\n", request.pid);
 
 				/* Open comminication named pipe */
 				fifoDescriptionChild = open(fifoSecureConnectionNameForClient, O_RDWR);
 
+				/* Child wait data of calculation from client */
+				read(fifoDescriptionChild, &CAL, sizeof(CAL));
+
+				/* Gelen CAL paketini hesapliyoruz*/
+				/* TODO::*/
+
 				while (1)
 				{
 					/* Wait any data*/
-					read(fifoDescriptionChild, &conn, sizeof(conn));
+					read(fifoDescriptionChild, &request, sizeof(request));
 
 					/* Control */
-					if (conn.pid == tempPid)
+					if (request.pid == tempPid)
 					{
 						strcpy(conn.buffer, "Merhaba dunya");
 						if (read(fifoDescriptionChild, &conn, sizeof(conn)) < 0)
@@ -237,7 +247,7 @@ void addClient(int queueNo, int pid)
 {
 	char identity[GTU_PRO_LEN];
 	snprintf(identity, GTU_PRO_LEN, GTU_PRO_SEC, pid);
-	activeClientsTable[queueNo].identity = identity;
+	strcpy(activeClientsTable[queueNo].identity, identity);
 	activeClientsTable[queueNo].pid = pid;
 	activeClientsTable[queueNo].status = 1;
 }

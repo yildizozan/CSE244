@@ -17,7 +17,6 @@ int main()
 	/* Protocol variables */
 	struct _request request;
 	struct _response response;
-	struct _CAL CAL;
 	struct _conn conn;
 
 	/* Fifo variables */
@@ -27,10 +26,9 @@ int main()
 	char *fifoNewSecureConnectionNameForServer;
 
 	/* Control variables */
-	int status;
 
 	/*
-	We can try to open fifo file for server connection
+	*	We can try to open fifo file for server connection
 	*/
 	if ((fifoDescriptionMainConnection = open(GTU_PRO_NAM, O_RDWR)) < 0)
 	{
@@ -41,12 +39,12 @@ int main()
 	else
 	{
 		/*
-		1- Fill request
-		2- Create protocol and add client pid in protocol
-		3- Send request (send pid)
-		4- Server response is pid and protocolddd
+		*	1- Fill request
+		*	2- Create protocol and add client pid in protocol
+		*	3- Send request (send pid)
+		*	4- Server response is pid and protocolddd
 		*/
-		request.pid = (long)getpid();
+		request.pid = getpid();
 		snprintf(fifoNewSecureConnectionNameForServer, GTU_PRO_LEN, GTU_PRO_SEC, request.pid);
 
 		while (strcmp(fifoNewSecureConnectionNameForServer, response.identity) != 0)
@@ -71,7 +69,6 @@ int main()
 			sleep(1);
 		}
 
-		close(fifoDescriptionMainConnection);
 		printf("Connection OK!\n");
 
 	}
@@ -83,13 +80,7 @@ int main()
 		perror("Error code 342:");
 
 	/* Sending CAL */
-	CAL.pid = getpid();
-	CAL.fi = argv[1];
-	CAL.fj = argv[2];
-	CAL.timeInterval = argv[3];
-	CAL.operand = argv[4];
 
-	write(fifoDescriptionNewSecureConnection, &CAL, sizeof(CAL);
 
 	while (1)
 	{
@@ -106,6 +97,7 @@ int main()
 		}
 	}
 
+	close(fifoDescriptionMainConnection);
 	close(fifoDescriptionNewSecureConnection);
 
 	return 1;

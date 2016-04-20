@@ -8,17 +8,17 @@
 
 struct _request
 {
-	long pid;
+	unsigned long pid;
 };
 struct _response
 {
 	char identity[GTU_PRO_LEN];
-	long pid;
+	unsigned long pid;
 	int status;
 };
 struct _CAL /* (C)alculate (A)rguman (L)ist */
 {
-	long pid;
+	unsigned long pid;
 	char fi[2];
 	char fj[2];
 	float timeInterval;
@@ -26,7 +26,7 @@ struct _CAL /* (C)alculate (A)rguman (L)ist */
 };
 struct _conn
 {
-	long pid;
+	unsigned long pid;
 	char buffer[BUFFER_SIZE];
 	int status;
 };
