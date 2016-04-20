@@ -1,4 +1,3 @@
-#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
@@ -13,9 +12,12 @@ int snprintf(char *, size_t, const char *, int);
 
 int main()
 {
+	/* Counters */
+	int tryConnection = 0;
 	/* Protocol variables */
 	struct _request request;
 	struct _response response;
+	struct _conn conn;
 
 	/* Fifo variables */
 	int fifoDescriptionMainConnection;
@@ -27,7 +29,7 @@ int main()
 	int status;
 
 	/*
-		We can try to open fifo file for server connection
+	We can try to open fifo file for server connection
 	*/
 	if ((fifoDescriptionMainConnection = open(GTU_PRO_NAM, O_RDWR)) < 0)
 	{
@@ -38,15 +40,15 @@ int main()
 	else
 	{
 		/*
-			1- Fill request
-			2- Create protocol and add client pid in protocol
-			3- Send request (send pid)
-			4- Server response is pid and protocolddd
+		1- Fill request
+		2- Create protocol and add client pid in protocol
+		3- Send request (send pid)
+		4- Server response is pid and protocolddd
 		*/
-		request.pid = (int)getpid();
+		request.pid = (long)getpid();
 		snprintf(fifoNewSecureConnectionNameForServer, GTU_PRO_LEN, GTU_PRO_SEC, request.pid);
 
-		while(strcmp(fifoNewSecureConnectionNameForServer, response.identity) != 0)
+		while (strcmp(fifoNewSecureConnectionNameForServer, response.identity) != 0)
 		{
 			if (write(fifoDescriptionMainConnection, &request, sizeof(request)) < 0)
 				perror("Error code 849:");
@@ -56,26 +58,49 @@ int main()
 				perror("Error try again code 516:");
 				exit(EXIT_FAILURE);
 			}
+
+			if (tryConnection == 5)
+				printf("Connectin error to server.\n");
+
+			if (tryConnection == 10)
+				printf("Cannot connect to server.\n");
+
+			printf("Tekrar bağlanmaya çalışılacak..\n");
+			tryConnection++;
+			sleep(1);
 		}
 
-		/*
-			Response protocol control
-		*/
+		close(fifoDescriptionMainConnection);
 		printf("Connection OK!\n");
 
 	}
 
-printf("-- ID: %d - SEC: %s\n", response.identityNo, response.identity);
-
+	/*
+	*	Connection OK!
+	*/
 	if ((fifoDescriptionNewSecureConnection = open(fifoNewSecureConnectionNameForServer, O_RDWR)) < 0)
 		perror("Error code 342:");
 
-	if (0 < read(fifoDescriptionNewSecureConnection, fifoBuffer, BUFFER_SIZE))
-		printf("%s", fifoBuffer);
+	while (1)
+	{
+		/* Request */
+		conn.pid = getpid();
+		conn.status = 3;
+		write(fifoDescriptionNewSecureConnection, &conn, sizeof(conn));
 
+		/* Response */
+		read(fifoDescriptionNewSecureConnection, &conn, sizeof(conn));
+
+		if (conn.status == 1)
+			printf("%s\n", conn.buffer);
+		else
+		{
+			printf("Tekrar deneyecek\n");
+			sleep(3);
+		}
+	}
 
 	close(fifoDescriptionNewSecureConnection);
-	close(fifoDescriptionMainConnection);
 
 	return 1;
 }

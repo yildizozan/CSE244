@@ -7,28 +7,42 @@
 #include <unistd.h>
 #include "protocol.h"
 
-#define BUFFER_SIZE 4096
-
 int snprintf(char *, size_t, const char *, int);
 int wait(void *);
 
+void addClient(int queueNo, int pid);
+void deleteClient(int queueNo, int pid);
+
+/* Active connect computers */
+static struct _response activeClientsTable[255];
 
 int main(int argc, char *argv[])
 {
-	/* Protocol variables */
-	struct _request request;
-	struct _response response;
-	int identity = 0;
 
 	/* Argumans vaariables */
 	float resulution = atof(argv[1]);
 	int maxClient = atoi(argv[2]);
 
+	/* Counters */
+	int childProcessCount;
+	int i;
+	int tempi = 0;
+	int exist = 0;
+	int activeClients = 0;
+
+	/* Protocol variables */
+	struct _request request;
+	struct _response response;
+	struct _conn conn;
+
+	/* Pipe variable */
+	int pipeDescription[2];
+
 	/* Fifo status */
 	int fifoDescriptionMainConnection;
 	int fifoDescriptionChild;
 	char fifoBuffer[BUFFER_SIZE];
-	char fifoSecureConnectionNameForClient[BUFFER_SIZE];
+	char fifoSecureConnectionNameForClient[GTU_PRO_LEN];
 
 	/* Child process variables */
 	pid_t childPid;
@@ -44,6 +58,16 @@ int main(int argc, char *argv[])
 
 	/* Control */
 	printf("--%f - %d\n", resulution, maxClient);
+
+	/*****************************
+
+	Server prepearing
+
+	*****************************/
+
+	/* Reset active computer table */
+	for (i = 0; i < maxClient; i++)
+		activeClientsTable[i].pid = -1.0;
 
 	/*
 	We'll try to create fifo file for connection
@@ -65,35 +89,81 @@ int main(int argc, char *argv[])
 	else
 		printf("Server working and waiting client(s)..\n");
 
-	/*
-		Waiting clients *****************************
-	*/
+	/****************************
+
+	Waiting clients
+
+	*****************************/
 	while (1)
 	{
+		/* Resets */
+		exist = 0;
 
-		printf("Client connet now: %d\n", identity);
+		printf("Client connet now: %d\n", activeClients);
 
 		/*
-			Response
-			We'll waiting request protocol for continue..
+		*	Response
+		*	We'll waiting request protocol for continue..
 		*/
 		if (0 < (read(fifoDescriptionMainConnection, &request, sizeof(request)) != sizeof(request)))
 			continue;
 
-		printf("Client pid: %d connecting..\n", request.pid);
+		/* Create a protocol */
+		printf("PID: %ld olan bilgisayar baglanacak..\n", request.pid);
+		snprintf(fifoSecureConnectionNameForClient, GTU_PRO_LEN, GTU_PRO_SEC, request.pid);
 
 		/*
-			Creating secure named pipe for comminucate
+		*	Authentication
 		*/
-		snprintf(fifoSecureConnectionNameForClient, GTU_PRO_LEN, GTU_PRO_SEC, request.pid);
-printf("%s\n", fifoSecureConnectionNameForClient);
-		if (mkfifo(fifoSecureConnectionNameForClient, 0666) < 0 && (errno != EEXIST))
+		for (i = 0; i < maxClient; ++i)
 		{
-			printf("Connot connect!\n");
+			/*
+			*	Tabloda zaten varmi diye bakiyoruz eger varsa
+			*	Olumsuz yanit gönderiyoruz.
+			*/
+			if (activeClientsTable[i].pid == request.pid)
+			{
+				exist = 1;
+				break;
+			}
+
+			if (response.identity == NULL)
+				tempi = i;
+		}
+
+		/*
+		*	Register
+		*/
+		if (exist == 0)
+		{
+			addClient(i, request.pid);
+			response.identity = fifoSecureConnectionNameForClient;
+			response.status = 1;
+			write(fifoDescriptionMainConnection, &response, sizeof(response));
+		}
+		else
+		{
+			deleteClient(i, request.pid);
+			response.status = -1;
+			write(fifoDescriptionMainConnection, &response, sizeof(response));
 			continue;
 		}
 
-		if ( (childPid = fork()) < 0)
+		/*
+		Creating secure named pipe for comminucate
+		*/
+		printf("%s\n", fifoSecureConnectionNameForClient);
+		if (mkfifo(fifoSecureConnectionNameForClient, 0666) < 0 && (errno != EEXIST))
+		{
+			printf("Error 2569\n");
+			continue;
+		}
+		if (pipe(pipeDescription) < 0)
+		{
+			perror("Error 3659");
+			continue;
+		}
+		if ((childPid = fork()) < 0)
 		{
 			perror("Error 4198");
 			continue;
@@ -102,19 +172,42 @@ printf("%s\n", fifoSecureConnectionNameForClient);
 		{
 			if (childPid) /* Parent process */
 			{
-				/* Create new identity */
-				identity++;
-				response.identityNo = identity;
-				strcpy(response.identity, fifoSecureConnectionNameForClient);
-				write(fifoDescriptionMainConnection, &response, sizeof(response));
-				wait(NULL);
+				close(pipeDescription[0]);
+				write(pipeDescription[1], &request.pid, sizeof(request.pid));
+				close(pipeDescription[1]);
 			}
 			else /* Child process */
 			{
+				long tempPid;
 
+				close(pipeDescription[0]);
+				read(pipeDescription[1], &request.pid, sizeof(request.pid));
+				tempPid = request.pid;
+				close(pipeDescription[1]);
+
+				/* Open comminication named pipe */
 				fifoDescriptionChild = open(fifoSecureConnectionNameForClient, O_RDWR);
-				if (write(fifoDescriptionChild, "Welcome. I'm chil process\n", sizeof("Welcome. I'm chil process\n")) < 0)
-					perror("Error 154");
+
+				while (1)
+				{
+					/* Wait any data*/
+					read(fifoDescriptionChild, &conn, sizeof(conn));
+
+					/* Control */
+					if (conn.pid == tempPid)
+					{
+						strcpy(conn.buffer, "Merhaba dunya");
+						if (read(fifoDescriptionChild, &conn, sizeof(conn)) < 0)
+							perror("Error 154");
+					}
+					else
+					{
+						printf("--- asd\n");
+					}
+
+					sleep(1);
+				}
+
 
 				close(fifoDescriptionChild);
 				unlink(fifoSecureConnectionNameForClient);
@@ -125,18 +218,31 @@ printf("%s\n", fifoSecureConnectionNameForClient);
 
 	} /* end while */
 
-	/*
-	Close and delete fifo files
-	*/
+	  /*
+	  Close and delete fifo files
+	  */
 	close(fifoDescriptionChild);
 	close(fifoDescriptionMainConnection);
 	unlink("Connection");
 
-	int childProcessCount;
 	while (0 < (childPid = wait(NULL)))
 	{
-		printf("-Chil: %d completed. Total %d\n", (int)getpid(), childProcessCount++);
+		printf("-Chil: %ld completed. Total %d\n", (long)getpid(), childProcessCount++);
 	}
 
 	return 1;
+}
+
+void addClient(int queueNo, int pid)
+{
+	char identity[GTU_PRO_LEN];
+	snprintf(identity, GTU_PRO_LEN, GTU_PRO_SEC, pid);
+	activeClientsTable[queueNo].identity = identity;
+	activeClientsTable[queueNo].pid = pid;
+	activeClientsTable[queueNo].status = 1;
+}
+
+void deleteClient(int queueNo, int pid)
+{
+	activeClientsTable[queueNo].pid = 0;
 }
