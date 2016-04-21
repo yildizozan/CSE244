@@ -2,15 +2,10 @@
 
 int main(int argc, char const *argv[])
 {
-	/* Protocols */
-	struct _EXCP EXCP;
-
-	/* Buffer */
-	char buf[BUFFER_SIZE];
-
-	/* Fifo variables */
 	int fdMainConnRequest;
 	int fdMainConnResponse;
+
+	char buffer[BUFFER_SIZE];
 
 	/* create the FIFO (named pipe) */
 	mkfifo(GTU_PRO_REQ, 0666);
@@ -24,16 +19,25 @@ int main(int argc, char const *argv[])
 
 	while (1)
 	{
-		if (read(fdMainConnRequest, &EXCP, sizeof(struct _EXCP)) != sizeof(struct _EXCP));
-		continue;
-		printf("Gelen:\n%ld\n%s\n%d\n%s\n------\n", (long)EXCP.pid, EXCP.identity, EXCP.status, EXCP.message);
+		read(fdMainConnRequest, buffer, BUFFER_SIZE);
 
+		if (strcmp("exit", buffer) == 0)
+		{
+			printf("Server OFF.\n");
+			break;
+		}
 
-		write(fdMainConnResponse, &EXCP, sizeof(struct _EXCP));
-		printf("Giden:\n%ld\n%s\n%d\n%s\n------\n", (long)EXCP.pid, EXCP.identity, EXCP.status, EXCP.message);
+		else if (strcmp("", buffer) != 0)
+		{
+			printf("%s\n", buffer);
+			printf("Received: %s\n", buffer);
+			printf("Sending back...\n");
+			strcpy(buffer, "1");
+			write(fdMainConnResponse, buffer, BUFFER_SIZE);
+		}
 
-		/* Clean used data */
-		memset(&EXCP, 0, sizeof(struct _EXCP));
+		/* clean buffer from any data */
+		memset(buffer, 0, sizeof(buffer));
 	}
 
 	close(fdMainConnRequest);
@@ -43,3 +47,4 @@ int main(int argc, char const *argv[])
 	unlink(GTU_PRO_RES);
 	return 0;
 }
+
