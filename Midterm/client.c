@@ -14,8 +14,8 @@ int main(int argc, char const *argv[])
 	fdMainConnRequest = open(GTU_PRO_REQ, O_WRONLY);
 	fdMainConnResponse = open(GTU_PRO_RES, O_RDONLY);
 
-	sprintf(buffer, "%lu", (unsigned long)getpid());
 
+	sprintf(buffer, "%lu", (unsigned long)getpid());
 	write(fdMainConnRequest, buffer, BUFFER_SIZE);
 
 	perror("Write:");
