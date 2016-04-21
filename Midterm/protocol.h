@@ -14,18 +14,17 @@
 #define GTU_PRO_SEC	"xL457.GTU-%ld.conn"
 #define GTU_PRO_LEN	(sizeof(GTU_PRO_SEC) + 10)
 
-
 struct _EXCP	/* (Ex)tended (C)onnection (P)rotocol */
 {
-	pid_t pid;
+	char pid[10];
 	char identity[GTU_PRO_LEN];
-	int status;
-	char buffer[BUFFER_SIZE];
+	char status;
+	char message[BUFFER_SIZE];
 };
 
 struct _CALP	/* (C)alculate (A)rguman (L)ist (P)rotocol */
 {
-	pid_t pid;
+	unsigned long pid;
 	char fi[2];
 	char fj[2];
 	float timeInterval;
@@ -36,9 +35,9 @@ struct _CALP	/* (C)alculate (A)rguman (L)ist (P)rotocol */
 /*
 Status codes:
 
--1	Client zaten kayitli
-0	Ilk baglanti istegi
-1	Register edildi sorun yok
-2	Server send new data to client
-3	Client read new data from server
+0	Client zaten kayitli
+1	Ilk baglanti istegi
+2	Register edildi sorun yok
+4	Server send new data to client
+5	Client read new data from server
 */
