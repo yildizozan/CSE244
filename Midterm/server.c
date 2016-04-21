@@ -32,8 +32,7 @@ void addChild(const pid_t childPid);
 void deleteChild(const pid_t childPid);
 
 /* Signal */
-void  signalHanflerSIGINT(int);
-void  signalHanflerSIGQUIT(int);
+void  signalHandler(int);
 
 /* Other functions */
 void openingStyle1(void);
@@ -85,7 +84,10 @@ int main(int argc, char const *argv[])
 
 	*************************************/
 
-	signal(SIGINT, signalHanflerSIGINT);
+	signal(SIGHUP, signalHandler);
+	signal(SIGINT, signalHandler);
+	signal(SIGKILL, signalHandler);
+	signal(SIGQUIT, signalHandler);
 
 
 	/*************************************
@@ -93,20 +95,24 @@ int main(int argc, char const *argv[])
 	*	OPENING
 
 	*************************************/
-	if (fork() == 0) /* Child */
+	if ((childPid =fork()) == 0) /* Child */
 	{
 		openingStyle2();
 		exit(EXIT_SUCCESS);
 	}
 	else /* Main */
 	{
+		addChild(childPid);
+
 		/*************************************
 
 		*	PREPARE SERVER
 
 		*************************************/
 
-		/* Table reset */
+		/*
+		*	Active client table reset
+		*/
 		for (i = 0; i < maxClients; ++i)
 			strcpy(activeClientTable[i].pid, "");
 
@@ -251,6 +257,10 @@ int main(int argc, char const *argv[])
 						snprintf(buffer, BUFFER_SIZE, "%d", a++);
 
 						write(fdNewSecureConnection, buffer, BUFFER_SIZE);
+						read(fdNewSecureConnection, buffer, BUFFER_SIZE);
+						if (strcmp(buffer, "7") == 0)
+							break;
+
 						sleep(1);
 					}
 
@@ -312,39 +322,18 @@ int main(int argc, char const *argv[])
 
 *****************************************************/
 
-void signalHanflerSIGINT(int sign)
+void signalHandler(int sign)
 {
-	char choice;
-
-	signal(sign, SIG_IGN);
-
-	printf("Do you really want to quit? [y/n] ");
-	choice = getchar();
-
-	if (choice == 'y' || choice == 'Y')
-		exit(EXIT_SUCCESS);
-	else
-		signal(SIGINT, signalHanflerSIGINT);
-	getchar();
-
-
-/*
-		for (i = 0; i < maxClients; ++i)
-		{
-			activeClientTable[i].pid
-		}
-*/
+	if (sign == SIGHUP)
+		printf("Catch HUP\n");
+	if (sign == SIGINT)
+		printf("Catch Ctrl + C\n");
+	if (sign == SIGKILL)
+		printf("Durdurulamaz\n");
+	if (sign == SIGQUIT)
+		printf("Belki durdurulur\n");
 }
 
-void signalHanflerSIGQUIT(int sign)
-{
-	int i;
-	if(sign == SIGINT)
-		for (i = 0; i < maxClients; ++i)
-		{
-			printf("Ctrl + C yakalandi\n");
-		}
-}
 
 /*****************************************************
 
