@@ -2,31 +2,41 @@
 
 int main(int argc, char const *argv[])
 {
-	int fdMainConnRequest;
+	/* Protocols */
+	struct _EXCP EXCP;
 
+	/* Buffer */
+	char buf[BUFFER_SIZE];
+
+	/* Fifo variables */
+	int fdMainConnRequest;
 	int fdMainConnResponse;
 
-	char str[BUFFER_SIZE];
+	printf("%d\n", (int)getpid());
 	printf("Input message to serwer: ");
-	scanf("%s", str);
+	scanf("%s", buf);
 
 
-	/* write str to the FIFO */
+	/* write buf to the FIFO */
 	fdMainConnRequest = open(GTU_PRO_REQ, O_WRONLY);
 	fdMainConnResponse = open(GTU_PRO_RES, O_RDONLY);
-	write(fdMainConnRequest, str, BUFFER_SIZE);
 
+	/* Prepare protocol */
+	EXCP.pid = getpid();
+	EXCP.status = 0;
+
+	write(fdMainConnRequest, &EXCP, sizeof(struct _EXCP));
 	perror("Write:");
 
-	read(fdMainConnResponse, str, BUFFER_SIZE);
-
+	read(fdMainConnResponse, &EXCP, sizeof(struct _EXCP));
 	perror("Read:");
 
-	printf("...received from the server: %s\n", str);
 	close(fdMainConnRequest);
 	close(fdMainConnResponse);
 
-	/* remove the FIFO */
+	if (EXCP.status == 1)
+		printf("%d\n", EXCP.status);
+
 
 	return 0;
 }
