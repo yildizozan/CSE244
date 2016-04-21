@@ -1,13 +1,26 @@
 /***
- *    ______/\\\___/\\\\\\\\\\\\\\\_______/\\\_____/\\\\\\\_______________/\\\_______________/\\\________/\\\\\\\________/\\\\\\\\\_______/\\\\\\\\\_____        
- *     __/\\\\\\\__\/\\\///////////____/\\\\\\\___/\\\/////\\\___________/\\\\\_____________/\\\\\______/\\\/////\\\____/\\\///////\\\___/\\\///////\\\___       
- *      _\/////\\\__\/\\\______________\/////\\\__/\\\____\//\\\________/\\\/\\\___________/\\\/\\\_____/\\\____\//\\\__\/\\\_____\/\\\__\///______\//\\\__      
- *       _____\/\\\__\/\\\\\\\\\\\\_________\/\\\_\/\\\_____\/\\\______/\\\/\/\\\_________/\\\/\/\\\____\/\\\_____\/\\\__\///\\\\\\\\\/_____________/\\\/___     
- *        _____\/\\\__\////////////\\\_______\/\\\_\/\\\_____\/\\\____/\\\/__\/\\\_______/\\\/__\/\\\____\/\\\_____\/\\\___/\\\///////\\\_________/\\\//_____    
- *         _____\/\\\_____________\//\\\______\/\\\_\/\\\_____\/\\\__/\\\\\\\\\\\\\\\\__/\\\\\\\\\\\\\\\\_\/\\\_____\/\\\__/\\\______\//\\\_____/\\\//________   
- *          _____\/\\\__/\\\________\/\\\______\/\\\_\//\\\____/\\\__\///////////\\\//__\///////////\\\//__\//\\\____/\\\__\//\\\______/\\\____/\\\/___________  
- *           _____\/\\\_\//\\\\\\\\\\\\\/_______\/\\\__\///\\\\\\\/_____________\/\\\______________\/\\\_____\///\\\\\\\/____\///\\\\\\\\\/____/\\\\\\\\\\\\\\\_ 
- *            _____\///___\/////////////_________\///_____\///////_______________\///_______________\///________\///////________\/////////_____\///////////////__
+ *                                                                                                                           
+ *      ,ad8888ba,                                           8b        d8  88  88           88888888ba,    88  888888888888  
+ *     d8"'    `"8b                                           Y8,    ,8P   88  88           88      `"8b   88           ,88  
+ *    d8'        `8b                                           Y8,  ,8P    88  88           88        `8b  88         ,88"   
+ *    88          88  888888888  ,adPPYYba,  8b,dPPYba,         "8aa8"     88  88           88         88  88       ,88"     
+ *    88          88       a8P"  ""     `Y8  88P'   `"8a         `88'      88  88           88         88  88     ,88"       
+ *    Y8,        ,8P    ,d8P'    ,adPPPPP88  88       88          88       88  88           88         8P  88   ,88"         
+ *     Y8a.    .a8P   ,d8"       88,    ,88  88       88          88       88  88           88      .a8P   88  88"           
+ *      `"Y8888Y"'    888888888  `"8bbdP"Y8  88       88          88       88  88888888888  88888888Y"'    88  888888888888  
+ *                                                                                                                           
+ *                                                                                                                           
+ *                                                                                                                           
+ *        88  8888888888    88     ,a8888a,             ,d8            ,d8       ,a8888a,      ad88888ba    ad888888b,       
+ *      ,d88  88          ,d88   ,8P"'  `"Y8,         ,d888          ,d888     ,8P"'  `"Y8,   d8"     "8b  d8"     "88       
+ *    888888  88  ____  888888  ,8P        Y8,      ,d8" 88        ,d8" 88    ,8P        Y8,  Y8a     a8P          a8P       
+ *        88  88a8PPPP8b,   88  88          88    ,d8"   88      ,d8"   88    88          88   "Y8aaa8P"        ,d8P"        
+ *        88  PP"     `8b   88  88          88  ,d8"     88    ,d8"     88    88          88   ,d8"""8b,      a8P"           
+ *        88           d8   88  `8b        d8'  8888888888888  8888888888888  `8b        d8'  d8"     "8b   a8P'             
+ *        88  Y8a     a8P   88   `8ba,  ,ad8'            88             88     `8ba,  ,ad8'   Y8a     a8P  d8"               
+ *        88   "Y88888P"    88     "Y8888P"              88             88       "Y8888P"      "Y88888P"   88888888888       
+ *                                                                                                                           
+ *                                                                                                                           
  */
 
 #include "protocol.h"
@@ -92,6 +105,7 @@ int main(int argc, char const *argv[])
 		*	PREPARE SERVER
 
 		*************************************/
+
 		/* Table reset */
 		for (i = 0; i < maxClients; ++i)
 			strcpy(activeClientTable[i].pid, "");
@@ -121,10 +135,12 @@ int main(int argc, char const *argv[])
 
 
 
-	printf("Active clients %d, Waiting client(s)..\n", activeClients);
 	/*
 	*	Server ON!
 	*/
+
+	printf("Active clients %d, Waiting client(s)..\n", activeClients);
+
 	while (1)
 	{
 		/* Control resets */
@@ -143,6 +159,22 @@ int main(int argc, char const *argv[])
 
 		else if (strcmp("", buffer) != 0)
 		{
+			/*
+			*	Server capacity control 
+			*/
+			if (activeClients == maxClients)
+			{
+				sprintf(buffer, "3");
+
+				/* Server send server full message */
+				write(fdMainConnResponse, buffer, BUFFER_SIZE);
+
+				/* Clean buffer data */
+				memset(buffer, 0, sizeof(buffer));
+
+				continue;
+			}
+
 			/*
 			*	Client zaten bagli mi diye kontrol ediyoruz
 			*	Eger zaten bagli ise disconnect yollayacagiz illegal bir durum
@@ -191,15 +223,14 @@ int main(int argc, char const *argv[])
 					GTU_PRO_SEC,
 					activeClientTable[emptySlot].pid);
 
-				/* Create pipe */
-				pipe(pipeDescriptionForServerClient);
-					perror("Child pipe status");
-
+				/*
+				*	Named pipe
+				*	Pipe
+				*	Fork
+				*/
 				mkfifo(nameNewSecureConnection, 0666);
-					perror("Child fifo status");
-
+				pipe(pipeDescriptionForServerClient);
 				childPid = fork();
-					perror("Child fork status");
 
 				if (childPid == 0)
 				{
@@ -239,6 +270,12 @@ int main(int argc, char const *argv[])
 					activeClients++;
 					printf("Connection is successful!\n");
 					printf("Active clients: %d\n", activeClients);
+
+					/* CONTROL ACTIVE CLIENTS */
+					for (int i = 0; i < maxClients; ++i)
+					{
+						printf("%d. client %s\n", i+1, activeClientTable[i].pid);
+					}
 				}
 				else
 				{
@@ -277,11 +314,19 @@ int main(int argc, char const *argv[])
 
 void signalHanflerSIGINT(int sign)
 {
+	char choice;
 
-	if(sign == SIGINT)
+	signal(sign, SIG_IGN);
 
-		printf("Ctrl + C yakalandi\n");
-		exit(1);
+	printf("Do you really want to quit? [y/n] ");
+	choice = getchar();
+
+	if (choice == 'y' || choice == 'Y')
+		exit(EXIT_SUCCESS);
+	else
+		signal(SIGINT, signalHanflerSIGINT);
+	getchar();
+
 
 /*
 		for (i = 0; i < maxClients; ++i)
@@ -377,6 +422,7 @@ usleep(500000);
 usleep(500000);
 	printf("                                                   Created by Ozan Yıldız\n");
 	printf("SERVER ON!..\n");
+	printf("\n");
 }
 
 void openingStyle2(void)
@@ -397,6 +443,6 @@ usleep(200000);
 usleep(200000);
 	printf("                                            Created by Ozan Yıldız\n");
 	printf("SERVER ON!..\n");
-
+	printf("\n");
 }
 
