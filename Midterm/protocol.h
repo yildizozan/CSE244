@@ -1,22 +1,28 @@
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
-#define BUFFER_SIZE 4096
+#define BUFFER_SIZE 100
 
-#define GTU_PRO_NAM	"Connection"
+#define GTU_PRO_REQ	"Request"
+#define GTU_PRO_RES	"Respond"
 #define GTU_PRO_SEC	"xL457.GTU-%ld.conn"
 #define GTU_PRO_LEN	(sizeof(GTU_PRO_SEC) + 10)
 
-struct _request
-{
-	pid_t pid;
-};
-struct _response
+
+struct _EXCP	/* (Ex)tended (C)onnection (P)rotocol */
 {
 	pid_t pid;
 	char identity[GTU_PRO_LEN];
 	int status;
+	char buffer[BUFFER_SIZE];
 };
-struct _CAL /* (C)alculate (A)rguman (L)ist */
+
+struct _CALP	/* (C)alculate (A)rguman (L)ist (P)rotocol */
 {
 	pid_t pid;
 	char fi[2];
@@ -24,12 +30,7 @@ struct _CAL /* (C)alculate (A)rguman (L)ist */
 	float timeInterval;
 	char operand;
 };
-struct _conn
-{
-	pid_t pid;
-	char buffer[BUFFER_SIZE];
-	int status;
-};
+
 
 /*
 Status codes:
