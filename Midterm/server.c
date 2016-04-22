@@ -28,26 +28,29 @@
 void addClient(struct _EXCP client, const int i);
 void deleteClient(pid_t pidClient);
 
-/* Signal */
-void  signalHandlerServer(int);
-void signalHandlerChild(int sign);
 
 /* Other functions */
 void openingStyle1(void);
 void openingStyle2(void);
 
 
-
 /* Global variables */
+static struct _EXCP client;
 static struct _EXCP activeClientTable[255];
 static int maxClients;
 static int activeClients = 0;
 
 
+/* Signal */
+static void signalHandlerServer(int);
+static void signalHandlerChild(int);
 
 
 int main(int argc, char const *argv[])
 {
+	/* Signal */
+	struct sigaction signalMain;
+
 	/* Protocol */
     struct _EXCP EXCP, client;
 
@@ -56,7 +59,6 @@ int main(int argc, char const *argv[])
 	int status;
 
 	/* Control variables */
-	int disconnect;
 	int emptySlot;
 
 	/* Buffers */
@@ -64,7 +66,6 @@ int main(int argc, char const *argv[])
 
 	/* Fifo variables */
 	int fdMainConnection;
-	char nameNewSecureConnection[BUFFER_SIZE];
 	int fdNewSecureConnection;
 
 	/* Pipe variables */
@@ -77,23 +78,25 @@ int main(int argc, char const *argv[])
 /*	float resulution = atof(argv[1]);*/
 	maxClients = atoi(argv[2]);
 
+
 	/*************************************
 
 	*   SIGNALS
 
 	*************************************/
+	signalMain.sa_handler = signalHandlerServer;
+	sigemptyset (&signalMain.sa_mask);
+	signalMain.sa_flags = SA_RESTART;
 
-	signal(SIGHUP, signalHandlerServer);
-	signal(SIGINT, signalHandlerServer);
-	signal(SIGKILL, signalHandlerServer);
-	signal(SIGQUIT, signalHandlerServer);
-	signal(SIGUSR1, signalHandlerServer);
-	signal(SIGUSR2, SIG_IGN);
+	sigaction(SIGINT, &signalMain, NULL);
+	sigaction(SIGUSR1, &signalMain, &signalOld);
 
 
-	/*
-	*	Prepare server
-	*/
+	/*********************************
+
+	*	Prepare server for open
+
+	*********************************/
 
 	for ( i = 0; i < maxClients; ++i)
 		activeClientTable[i].pidClient = 0;
@@ -103,10 +106,15 @@ int main(int argc, char const *argv[])
 	mkfifo(GTU_PRO_NAM, 0666);
 	fdMainConnection = open(GTU_PRO_NAM, O_RDWR);
 
+	/*********************************
+
+	*	Opening
+
+	*********************************/
+	openingStyle2();
+
 	while(1)
 	{
-		/* Reset variables */
-		disconnect = 0;
 
 		/*
 		*	Waiting client
@@ -173,15 +181,19 @@ int main(int argc, char const *argv[])
 					*   SIGNALS
 
 					*************************************/
+					struct sigaction signalChild;
+					signalChild.sa_handler = signalHandlerChild;
+					sigemptyset (&signalChild.sa_mask);
+					signalChild.sa_flags = SA_RESETHAND;
 
-					signal(SIGHUP, signalHandlerChild);
-					signal(SIGINT, signalHandlerChild);
-					signal(SIGKILL, signalHandlerChild);
-					signal(SIGQUIT, signalHandlerChild);
-					signal(SIGUSR1, signalHandlerChild);
-					signal(SIGUSR2, SIG_IGN);
+				    sigaction(SIGINT, &signalChild, 0);
+				    sigaction(SIGUSR1, &signalChild, 0);
+				    sigaction(SIGUSR2, &signalChild, 0);
 
-					/* Child kendi bilgilerini doldurup parenta yolluyor */
+
+					/*
+					*	Child send child pid to main process
+					*/
 					EXCP.pidChild = getpid();
 
 					close(pipeDescriptionForServerClient[0]);
@@ -234,24 +246,24 @@ int main(int argc, char const *argv[])
 					/*
 					*	Register ediyoruz artık sorun yok
 					*/
+					printf("client.pidClient: %d\n", (int)client.pidClient);
+					printf("client.pidChild: %d\n", (int)client.pidChild);
+					printf("client.identity: %s\n", client.identity);
+					printf("client.data: %s\n", client.data);
+					printf("client.status: %d\n", client.status);
+					printf("\n");
+			
 					addClient(client, emptySlot);
 
-printf("client.pidClient: %d\n", (int)client.pidClient);
-printf("client.pidChild: %d\n", (int)client.pidChild);
-printf("client.identity: %s\n", client.identity);
-printf("client.data: %s\n", client.data);
-printf("client.status: %d\n", client.status);
-printf("\n");
-
-
 				}
+
 			}
 
 		}
 
-		/*
-		*	Clean data
-		*/
+		/* Data reset */
+		memset(&client, 0, sizeof(struct _EXCP));
+
 	}
 
 	close(fdMainConnection);
@@ -259,19 +271,142 @@ printf("\n");
     return 0;
 }
 
-void addClient(struct _EXCP client, const int i)
+void addClient(struct _EXCP newClient, const int i)
 {
-
+	activeClientTable[i].pidClient = newClient.pidClient;
+	activeClientTable[i].pidChild = newClient.pidChild;
+	strcpy(activeClientTable[i].identity, newClient.identity);
+	activeClientTable[i].status = newClient.status;
 }
 
-void deleteClient(pid_t pidClient)
+
+void deleteClient(pid_t childPid)
 {
 	int i;
+
 	for (i = 0; i < maxClients; ++i)
 	{
-		if (activeClientTable[i].pidClient == pidClient)
+		if (activeClientTable[i].pidChild == childPid)
 		{
 			activeClientTable[i].pidClient = 0;
+			activeClientTable[i].pidChild = 0;
+			strcpy(activeClientTable[i].identity, "");
+			activeClientTable[i].status = 0;
+			break;
 		}
 	}
 }
+
+/*********************************************************
+
+	SECTION: 	SIGNALS
+
+	FUNCTIONS:	Main and child prcess signal handlers
+
+	PURPOSE:	
+
+	COMMENTS:	
+
+
+
+************************************************************/
+static void signalHandlerServer(int sign)
+{
+	if (sign == SIGUSR1)
+	{
+		pid_t childPid = waitpid(-1, NULL, 0);
+		deleteClient(childPid);
+
+
+		kill(childPid, SIGQUIT);
+		printf("%d died\n", (int)childPid);
+
+
+	}
+
+	if (sign == SIGINT)
+	{
+
+	}
+}
+
+static void signalHandlerChild(int sign)
+{
+
+	if (sign == SIGUSR1)
+	{
+		printf("Catch SIGUSR1\n");
+
+		for (int i = 0; i < maxClients; ++i)
+		{
+			if (activeClientTable[i].pidChild == getpid())
+			{
+				kill(activeClientTable[i].pidClient, SIGUSR2);
+				exit(EXIT_SUCCESS);
+			}
+		}
+	}
+
+	if (sign == SIGUSR2)
+	{
+		kill(getppid(), SIGUSR1);
+		exit(EXIT_SUCCESS);
+	}
+
+	if (sign == SIGINT)
+	{
+	}
+}
+
+/*****************************************************
+
+	FUNCTIONS:	Opening style
+
+	SUMMERY	
+
+	COMMENTS
+
+*****************************************************/
+
+void openingStyle1(void)
+{
+	printf(" _______  _______  ______    __   __  _______  ______      __   __  ____\n");
+	printf("|       ||       ||    _ |  |  | |  ||       ||    _ |    |  | |  ||    |\n");
+usleep(500000);
+	printf("|  _____||    ___||   | ||  |  |_|  ||    ___||   | ||    |  |_|  | |   |\n");
+usleep(500000);
+	printf("| |_____ |   |___ |   |_||_ |       ||   |___ |   |_||_   |       | |   |\n");
+usleep(500000);
+	printf("|_____  ||    ___||    __  ||       ||    ___||    __  |  |       | |   |\n");
+usleep(500000);
+	printf(" _____| ||   |___ |   |  | | |     | |   |___ |   |  | |   |     |  |   |\n");
+usleep(500000);
+	printf("|_______||_______||___|  |_|  |___|  |_______||___|  |_|    |___|   |___|\n");
+	printf("\n");
+usleep(500000);
+	printf("                                                   Created by Ozan Yıldız\n");
+	printf("SERVER ON!..\n");
+	printf("\n");
+}
+
+void openingStyle2(void)
+{
+	printf("\n");
+	printf(".d8888. d88888b d8888b. db    db d88888b d8888b.      db    db  db\n");
+usleep(200000);
+	printf("88'  YP 88'     88  `8D 88    88 88'     88  `8D      88    88 o88\n");
+usleep(200000);
+	printf("`8bo.   88ooooo 88oobY' Y8    8P 88ooooo 88oobY'      Y8    8P  88\n");
+usleep(200000);
+	printf("  `Y8b. 88~~~~~ 88`8b   `8b  d8' 88~~~~~ 88`8b        `8b  d8'  88\n");
+usleep(200000);
+	printf("db   8D 88.     88 `88.  `8bd8'  88.     88 `88.       `8bd8'   88\n");
+usleep(200000);
+	printf("`8888Y' Y88888P 88   YD    YP    Y88888P 88   YD         YP     VP\n");
+	printf("\n");
+usleep(200000);
+	printf("                                            Created by Ozan Yıldız\n");
+	printf("SERVER ON!..\n");
+	printf("\n");
+}
+

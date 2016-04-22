@@ -1,13 +1,15 @@
 #include "protocol.h"
 
 /* Signal */
-void  signalHandlerClient(int);
+static void signalHandlerClient(int);
 
+/* Protocol */
+static struct _EXCP EXCP;
 
 int main(int argc, char const *argv[])
 {
-    /* Protocol */
-    struct _EXCP EXCP;
+    /* Signal */
+    struct sigaction signalClient;
 
     /* Buffers */
     char buffer[BUFFER_SIZE];
@@ -21,13 +23,11 @@ int main(int argc, char const *argv[])
     *   SIGNALS
 
     *************************************/
+    signalClient.sa_handler = signalHandlerClient;
+    sigemptyset (&signalClient.sa_mask);
+    signalClient.sa_flags = SA_RESETHAND;
 
-    signal(SIGHUP, signalHandlerClient);
-    signal(SIGINT, signalHandlerClient);
-    signal(SIGKILL, signalHandlerClient);
-    signal(SIGQUIT, signalHandlerClient);
-    signal(SIGUSR1, SIG_IGN);
-    signal(SIGUSR2, signalHandlerClient);
+    sigaction(SIGINT, &signalClient, 0);
 
 
     /*
@@ -85,12 +85,12 @@ int main(int argc, char const *argv[])
     {
         read(fdNewSecureConnection, &EXCP, sizeof(struct _EXCP));
 
-printf("client.pidClient: %d\n", (int)EXCP.pidClient);
-printf("client.pidChild: %d\n", (int)EXCP.pidChild);
-printf("client.identity: %s\n", EXCP.identity);
-printf("client.data: %s\n", EXCP.data);
-printf("client.status: %d\n", EXCP.status);
-printf("\n");
+        printf("client.pidClient: %d\n", (int)EXCP.pidClient);
+        printf("client.pidChild: %d\n", (int)EXCP.pidChild);
+        printf("client.identity: %s\n", EXCP.identity);
+        printf("client.data: %s\n", EXCP.data);
+        printf("client.status: %d\n", EXCP.status);
+        printf("\n");
 
     }
 
@@ -112,15 +112,15 @@ printf("\n");
 
 void signalHandlerClient(int sign)
 {
-    if ((sign == SIGHUP) || (sign == SIGINT) || (sign == SIGKILL) || (sign == SIGQUIT))
+    if (sign == SIGINT)
     {
+        printf("Catch signal!\n");
+        kill(EXCP.pidChild, SIGUSR2);
         exit(EXIT_SUCCESS);
     }
 
     if (sign == SIGUSR2)
     {
-        signal(SIGUSR1, SIG_IGN);
-        
         printf("Server not online!\n");
         exit(EXIT_SUCCESS);
     }

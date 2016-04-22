@@ -36,14 +36,13 @@ struct _CALP	/* (C)alculate (A)rguman (L)ist (P)rotocol */
 /*
 Status codes:
 
+-8	Client kapaniyor.
+-9	Server kapaniyor. Disconnect.
 -1	Server full
------------------
-0	Ilk baglanti istegi
-1	Register edildi sorun yok
+----------------- 0 Pasif
+1	Aktif baglanmak istiyor.
+2	Register edildi sorun yok.
 
 4	Server send new data to client
 5	Client read new data from server
-7	Client kapaniyor.
-8	Server kapaniyor. Disconnect.
-9	Client zaten kayitli disconnect.
 */
