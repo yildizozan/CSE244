@@ -25,8 +25,8 @@
 
 #include "protocol.h"
 
-void addClient(const char clientName[10], const unsigned int i);
-void deleteClient(const char clientName[BUFFER_SIZE]);
+void addMember(const char clientName[10], const char childName[10], const unsigned int i);
+void deleteMember(const int i);
 
 void addChild(const char[10]);
 void deleteChild(const char[10]);
@@ -61,6 +61,8 @@ int main(int argc, char const *argv[])
 
 	/* Buffers */
 	char buffer[BUFFER_SIZE];
+	char clientName[10];
+	char childName[10];
 
 	/* Pipe variables */
 	int pipeDescriptionForServerClient[2];
@@ -198,7 +200,7 @@ int main(int argc, char const *argv[])
 				{
 					sprintf(buffer, "9");
 					write(fdMainConnResponse, buffer, BUFFER_SIZE);
-					deleteClient(activeClientTable[i].pid);
+					deleteMember(i);
 					disconnect = 1;
 					break;
 				}
@@ -219,7 +221,9 @@ int main(int argc, char const *argv[])
 			else
 			{
 				printf("Client: %s want to connect..\n", buffer);
-				addClient(buffer, emptySlot);
+				strcpy(clientName, buffer);
+
+				/* Sending access */
 				sprintf(buffer, "1");
 				write(fdMainConnResponse, buffer, BUFFER_SIZE);
 
@@ -261,8 +265,8 @@ int main(int argc, char const *argv[])
 
 					/* Waiting client connection protocol from server */
 					snprintf(buffer, BUFFER_SIZE, "%lu", (unsigned long)getpid());
-					write(pipeDescriptionForServerClient[0], buffer, BUFFER_SIZE);
-					close(pipeDescriptionForServerClient[0]);
+					write(pipeDescriptionForServerClient[1], buffer, BUFFER_SIZE);
+					close(pipeDescriptionForServerClient[1]);
 
 
 
@@ -293,10 +297,12 @@ int main(int argc, char const *argv[])
 				if (childPid > 0)
 				{
 					/* Parent sending client information with pipe */
-					read(pipeDescriptionForServerClient[1], buffer, BUFFER_SIZE);
-					close(pipeDescriptionForServerClient[1]);
+					read(pipeDescriptionForServerClient[0], buffer, BUFFER_SIZE);
+					close(pipeDescriptionForServerClient[0]);
 
-					addChild(buffer);
+					strcpy(childName, buffer);
+printf("%s\n", childName);
+					addMember(clientName, childName, emptySlot);
 					activeClients++;
 
 					snprintf(buffer, 10, "%lu", childPid);
@@ -305,10 +311,15 @@ int main(int argc, char const *argv[])
 					printf("Connection is successful!\n");
 					printf("Active clients: %d\n", activeClients);
 
+
 					/* CONTROL ACTIVE CLIENTS */
-					for (int i = 0; i < maxClients; ++i)
+					for (i = 0; i < maxClients; ++i)
 					{
-						printf("%d. client %s\n", i+1, activeClientTable[i].pid);
+						printf("%d. Client %s\n", i+1, activeClientTable[i].pid);
+					}
+					for (i = 0; i < maxClients; ++i)
+					{
+						printf("%d. Child  %s\n", i+1, childProcessesTable[i].childPid);
 					}
 				}
 				else
@@ -361,34 +372,31 @@ void signalHandlerServer(int sign)
 
 	if (sign == SIGUSR1)
 	{
-		pid_t childPid = waitpid(-1, NULL, 0);
+		pid_t childPid = wait(NULL);
 		
 		snprintf(childName, 10, "%lu", (unsigned long)childPid);
 
-printf("----------%lu\n", (unsigned long)childPid);
-
-/* Control child status */
-for (i = 0; i < maxClients; ++i)
-{
-	printf("Child durum:  %s\n", childProcessesTable[i].childPid);
-}
-
-		for (i = 0; i < maxClients; ++i);
+		for (i = 0; i < maxClients; ++i)
 			if (strcmp(activeClientTable[i].childPid, childName) == 0)
 			{
 				printf("Merhaba\n");
-				deleteClient(activeClientTable[i].pid);
+				deleteMember(i);
 
 				activeClients--;
+				break;
 			}
 
-			printf("Active clients: %d\n", activeClients);
+		printf("Active clients: %d\n", activeClients);
 
-			/* CONTROL ACTIVE CLIENTS */
-			for (i = 0; i < maxClients; ++i)
-			{
-				printf("%d. client %s\n", i+1, activeClientTable[i].pid);
-			}
+		/* CONTROL ACTIVE CLIENTS */
+		for (i = 0; i < maxClients; ++i)
+		{
+			printf("%d. Client %s\n", i+1, activeClientTable[i].pid);
+		}
+		for (i = 0; i < maxClients; ++i)
+		{
+			printf("%d. Child  %s\n", i+1, childProcessesTable[i].childPid);
+		}
 	}
 
 
@@ -427,18 +435,18 @@ void signalHandlerChild(int sign)
 	COMMENTS
 
 *****************************************************/
-void addClient(const char clientName[BUFFER_SIZE], const unsigned int i)
+void addMember(const char clientName[10], const char childName[10], const unsigned int i)
 {
 	strcpy(activeClientTable[i].pid, clientName);
+	strcpy(activeClientTable[i].childPid, childName);
+	strcpy(childProcessesTable[i].childPid, childName);
 }
-
-void deleteClient(const char clientName[BUFFER_SIZE])
+	
+void deleteMember(const int i)
 {
-	printf("Client cikis yapiyor..\n");
-	int i;
-	for (i = 0; i < maxClients; ++i)
-		if (strcmp(activeClientTable[i].pid, clientName))
-			strcmp(activeClientTable[i].pid, "");
+	strcpy(activeClientTable[i].pid, "");
+	strcpy(activeClientTable[i].childPid, "");
+	strcpy(childProcessesTable[i].childPid, "");
 }
 
 /*****************************************************
