@@ -29,12 +29,8 @@ void addClient(struct _EXCP client, const int i);
 void deleteClient(pid_t pidClient);
 
 /* Signal */
-<<<<<<< HEAD
 void  signalHandlerServer(int);
 void signalHandlerChild(int sign);
-=======
-void  signalHandler(int);
->>>>>>> origin/develop
 
 /* Other functions */
 void openingStyle1(void);
@@ -87,19 +83,12 @@ int main(int argc, char const *argv[])
 
 	*************************************/
 
-<<<<<<< HEAD
 	signal(SIGHUP, signalHandlerServer);
 	signal(SIGINT, signalHandlerServer);
 	signal(SIGKILL, signalHandlerServer);
 	signal(SIGQUIT, signalHandlerServer);
 	signal(SIGUSR1, signalHandlerServer);
 	signal(SIGUSR2, SIG_IGN);
-=======
-	signal(SIGHUP, signalHandler);
-	signal(SIGINT, signalHandler);
-	signal(SIGKILL, signalHandler);
-	signal(SIGQUIT, signalHandler);
->>>>>>> origin/develop
 
 
 	/*
@@ -109,37 +98,15 @@ int main(int argc, char const *argv[])
 	for ( i = 0; i < maxClients; ++i)
 		activeClientTable[i].pidClient = 0;
 
-<<<<<<< HEAD
-=======
-	*************************************/
-	if ((childPid =fork()) == 0) /* Child */
-	{
-		openingStyle2();
-		exit(EXIT_SUCCESS);
-	}
-	else /* Main */
-	{
-		addChild(childPid);
-
-		/*************************************
->>>>>>> origin/develop
 
 
 	mkfifo(GTU_PRO_NAM, 0666);
 	fdMainConnection = open(GTU_PRO_NAM, O_RDWR);
 
-<<<<<<< HEAD
 	while(1)
 	{
 		/* Reset variables */
 		disconnect = 0;
-=======
-		/*
-		*	Active client table reset
-		*/
-		for (i = 0; i < maxClients; ++i)
-			strcpy(activeClientTable[i].pid, "");
->>>>>>> origin/develop
 
 		/*
 		*	Waiting client
@@ -207,22 +174,12 @@ int main(int argc, char const *argv[])
 
 					*************************************/
 
-<<<<<<< HEAD
 					signal(SIGHUP, signalHandlerChild);
 					signal(SIGINT, signalHandlerChild);
 					signal(SIGKILL, signalHandlerChild);
 					signal(SIGQUIT, signalHandlerChild);
 					signal(SIGUSR1, signalHandlerChild);
 					signal(SIGUSR2, SIG_IGN);
-=======
-						write(fdNewSecureConnection, buffer, BUFFER_SIZE);
-						read(fdNewSecureConnection, buffer, BUFFER_SIZE);
-						if (strcmp(buffer, "7") == 0)
-							break;
-
-						sleep(1);
-					}
->>>>>>> origin/develop
 
 					/* Child kendi bilgilerini doldurup parenta yolluyor */
 					EXCP.pidChild = getpid();
@@ -262,7 +219,6 @@ int main(int argc, char const *argv[])
 					close(pipeDescriptionForServerClient[0]);
 
 
-<<<<<<< HEAD
 					/* 
 					*	Child kimligi eklendi client yapısına
 					*/
@@ -292,22 +248,6 @@ printf("\n");
 			}
 
 		}
-=======
-void signalHandler(int sign)
-{
-	if (sign == SIGHUP)
-		printf("Catch HUP\n");
-	if (sign == SIGINT)
-		printf("Catch Ctrl + C\n");
-	if (sign == SIGKILL)
-		printf("Durdurulamaz\n");
-	if (sign == SIGQUIT)
-		printf("Belki durdurulur\n");
-}
-
-
-/*****************************************************
->>>>>>> origin/develop
 
 		/*
 		*	Clean data
