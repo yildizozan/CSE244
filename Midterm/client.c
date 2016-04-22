@@ -44,7 +44,6 @@ int main(int argc, char const *argv[])
     EXCP.pidClient = getpid();
     EXCP.status = 1;
     snprintf(EXCP.identity, GTU_PRO_LEN, GTU_PRO_SEC, (long)getpid());
-    printf("--Control identity %s\n", EXCP.identity);
 
     /*
     *   Open main connection
@@ -89,6 +88,9 @@ int main(int argc, char const *argv[])
 
     fdNewSecureConnection = open(EXCP.identity, O_RDWR);
 
+    write(fdNewSecureConnection, &CALP, sizeof(struct _CALP));
+
+
     while(1)
     {
         read(fdNewSecureConnection, &EXCP, sizeof(struct _EXCP));
@@ -97,6 +99,7 @@ int main(int argc, char const *argv[])
         printf("client.pidChild: %d\n", (int)EXCP.pidChild);
         printf("client.identity: %s\n", EXCP.identity);
         printf("client.data: %s\n", EXCP.data);
+        printf("client.time: %s\n", EXCP.time);
         printf("client.status: %d\n", EXCP.status);
         printf("\n");
 
@@ -120,22 +123,15 @@ int main(int argc, char const *argv[])
 
 void signalHandlerClient(int sign)
 {
-
     if (sign == SIGUSR2)
     {
         printf("Server shut down!\n");
         exit(EXIT_SUCCESS);
     }
 
-    if (sign == SIGINT)
+    if (sign == SIGINT || sign == SIGKILL || sign == SIGTERM || sign == SIGQUIT)
     {
-        printf("Catch signal!\n");
         kill(EXCP.pidChild, SIGUSR2);
-        exit(EXIT_SUCCESS);
-    }
-
-    if (sign == SIGTERM)
-    {
         exit(EXIT_SUCCESS);
     }
 }

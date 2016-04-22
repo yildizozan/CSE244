@@ -47,6 +47,14 @@ struct sigaction signalOld;
 static void signalHandlerServer(int);
 static void signalHandlerChild(int);
 
+/* Math Functions */
+static char f1[BUFFER_SIZE];
+static char f2[BUFFER_SIZE];
+static char f3[BUFFER_SIZE];
+static char f4[BUFFER_SIZE];
+static char f5[BUFFER_SIZE];
+static char f6[BUFFER_SIZE];
+
 int main(int argc, char const *argv[])
 {
 	/* Signal */
@@ -55,10 +63,7 @@ int main(int argc, char const *argv[])
 	/* Time variables */
 	clock_t begin, end;
 	double timeSpent;
-
-	struct timeval timeStart;
-	struct timeval timeEnd;
-	long timeDif;
+	begin = clock();
 
 	/* Protocol */
     struct _EXCP EXCP, client;
@@ -69,7 +74,10 @@ int main(int argc, char const *argv[])
 	/* Control variables */
 	int emptySlot;
 
-	/* Buffers */
+	/* Files */
+	DIR *dir;
+	struct dirent *ent;
+	int fileDescription;
 
 	/* Fifo variables */
 	int fdMainConnection;
@@ -85,7 +93,6 @@ int main(int argc, char const *argv[])
 /*	float resulution = atof(argv[1]);*/
 	maxClients = atoi(argv[2]);
 
-	begin = clock();
 	/*************************************
 
 	*   SIGNALS
@@ -97,6 +104,60 @@ int main(int argc, char const *argv[])
 
 	sigaction(SIGINT, &signalMain, NULL);
 	sigaction(SIGUSR1, &signalMain, &signalOld);
+
+	/*************************************
+
+	*   Scanning txt
+
+	*************************************/
+
+	if ((dir = opendir(".")) == NULL)
+	{
+		perror("opendir");
+		exit(EXIT_FAILURE);
+	}
+	while ((ent = readdir(dir)) != NULL)
+	{
+
+		if (strcmp(ent->d_name, "f1") == 0)
+		{
+			fileDescription = open(ent->d_name, O_RDONLY);
+			read(fileDescription, &f1, BUFFER_SIZE);
+			close(fileDescription);
+		}
+		else if (strcmp(ent->d_name, "f2") == 0)
+		{
+			fileDescription = open(ent->d_name, O_RDONLY);
+			read(fileDescription, &f2, BUFFER_SIZE);
+			close(fileDescription);
+		}
+		else if (strcmp(ent->d_name, "f3") == 0)
+		{
+			fileDescription = open(ent->d_name, O_RDONLY);
+			read(fileDescription, &f3, BUFFER_SIZE);
+			close(fileDescription);
+		}
+		else if (strcmp(ent->d_name, "f4") == 0)
+		{
+			fileDescription = open(ent->d_name, O_RDONLY);
+			read(fileDescription, &f4, BUFFER_SIZE);
+			close(fileDescription);
+		}
+		else if (strcmp(ent->d_name, "f5") == 0)
+		{
+			fileDescription = open(ent->d_name, O_RDONLY);
+			read(fileDescription, &f5, BUFFER_SIZE);
+			close(fileDescription);
+		}
+		else if (strcmp(ent->d_name, "f6") == 0)
+		{
+			fileDescription = open(ent->d_name, O_RDONLY);
+			read(fileDescription, &f6, BUFFER_SIZE);
+			close(fileDescription);
+		}
+
+	}
+	closedir(dir);
 
 
 	/*********************************
@@ -180,8 +241,12 @@ int main(int argc, char const *argv[])
 				*/
 				if (childPid == 0)
 				{
-					int a = 0; /* DElete */
 					struct _CALP CALP;
+
+					/* Time for calculation */
+					long timedif;
+					struct timeval tpend;   
+					struct timeval tpstart;   
 
 					/*************************************
 
@@ -213,12 +278,16 @@ int main(int argc, char const *argv[])
 
 					fdNewSecureConnection = open(EXCP.identity, O_RDWR);
 
-					write(fdNewSecureConnection, &CALP, sizeof(struct _CALP));
+					read(fdNewSecureConnection, &CALP, sizeof(struct _CALP));
+
+					/* Time start */
+					gettimeofday(&tpstart, NULL);
 
 					while(1)
 					{
-						a++;
-						EXCP.status = a;
+						gettimeofday(&tpend, NULL);
+						timedif = MILLION*(tpend.tv_sec - tpstart.tv_sec) + tpend.tv_usec - tpstart.tv_usec;
+						EXCP.time = timedif;
 						write(fdNewSecureConnection, &EXCP, sizeof(struct _EXCP));
 						sleep(1);
 					}
@@ -268,9 +337,6 @@ int main(int argc, char const *argv[])
 			}
 
 		}
-		
-		timeDif = MILLION*(timeEnd.tv_sec - timeStart.tv_sec) + timeEnd.tv_usec - timeStart.tv_usec;
-		printf("The milisecond %ld \n", timeDif); 
 		
 		end = clock();
 		timeSpent = (double)(end - begin) / CLOCKS_PER_SEC;
@@ -353,7 +419,7 @@ static void signalHandlerServer(int sign)
 		kill(childPid, SIGQUIT);
 	}
 
-	if (sign == SIGINT)
+	if (sign == SIGINT || sign == SIGKILL || sign == SIGTERM || sign == SIGQUIT)
 	{
 		for (int i = 0; i < maxClients; ++i)
 		{

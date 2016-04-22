@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <fcntl.h>
+#include <dirent.h>
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
@@ -25,6 +26,7 @@ struct _EXCP	/* (Ex)tended (C)onnection (P)rotocol */
 	pid_t pidChild;
 	char identity[GTU_PRO_LEN];
 	char data[BUFFER_SIZE];
+	long time;
 	int status;
 };
 
