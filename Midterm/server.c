@@ -25,13 +25,14 @@
 
 #include "protocol.h"
 
+
 void addClient(struct _EXCP client, const int i);
 void deleteClient(pid_t pidClient);
-
 
 /* Other functions */
 void openingStyle1(void);
 void openingStyle2(void);
+
 
 
 /* Global variables */
@@ -40,29 +41,35 @@ static struct _EXCP activeClientTable[255];
 static int maxClients;
 static int activeClients = 0;
 
-
 /* Signal */
+struct sigaction signalOld;
+
 static void signalHandlerServer(int);
 static void signalHandlerChild(int);
-
 
 int main(int argc, char const *argv[])
 {
 	/* Signal */
 	struct sigaction signalMain;
 
+	/* Time variables */
+	clock_t begin, end;
+	double timeSpent;
+
+	struct timeval timeStart;
+	struct timeval timeEnd;
+	long timeDif;
+
 	/* Protocol */
     struct _EXCP EXCP, client;
 
 	/* Counters */
 	int i;
-	int status;
 
 	/* Control variables */
 	int emptySlot;
 
 	/* Buffers */
-	char buffer[BUFFER_SIZE];
 
 	/* Fifo variables */
 	int fdMainConnection;
@@ -78,7 +85,7 @@ int main(int argc, char const *argv[])
 /*	float resulution = atof(argv[1]);*/
 	maxClients = atoi(argv[2]);
 
-
+	begin = clock();
 	/*************************************
 
 	*   SIGNALS
@@ -155,8 +162,7 @@ int main(int argc, char const *argv[])
 			/*
 			*	Prepare protocol
 			*/
-			snprintf(buffer, GTU_PRO_LEN, GTU_PRO_SEC, (unsigned long)EXCP.pidClient);
-			strcpy(EXCP.identity, buffer);
+			snprintf(EXCP.identity, GTU_PRO_LEN, GTU_PRO_SEC, (unsigned long)EXCP.pidClient);
 			strcpy(client.identity, EXCP.identity);			
 			EXCP.status = 2;
 			write(fdMainConnection, &EXCP, sizeof(struct _EXCP));
@@ -175,6 +181,7 @@ int main(int argc, char const *argv[])
 				if (childPid == 0)
 				{
 					int a = 0; /* DElete */
+					struct _CALP CALP;
 
 					/*************************************
 
@@ -186,9 +193,9 @@ int main(int argc, char const *argv[])
 					sigemptyset (&signalChild.sa_mask);
 					signalChild.sa_flags = SA_RESETHAND;
 
-				    sigaction(SIGINT, &signalChild, 0);
-				    sigaction(SIGUSR1, &signalChild, 0);
-				    sigaction(SIGUSR2, &signalChild, 0);
+				    sigaction(SIGINT, &signalChild, NULL);
+				    sigaction(SIGUSR1, &signalChild, NULL);
+				    sigaction(SIGUSR2, &signalChild, NULL);
 
 
 					/*
@@ -204,8 +211,9 @@ int main(int argc, char const *argv[])
 					write(pipeDescriptionForServerClient[0], &EXCP, sizeof(struct _EXCP));
 					close(pipeDescriptionForServerClient[0]);
 
-
 					fdNewSecureConnection = open(EXCP.identity, O_RDWR);
+
+					write(fdNewSecureConnection, &CALP, sizeof(struct _CALP));
 
 					while(1)
 					{
@@ -245,12 +253,12 @@ int main(int argc, char const *argv[])
 
 					/*
 					*	Register ediyoruz artık sorun yok
+					*	Register raporu
 					*/
-					printf("client.pidClient: %d\n", (int)client.pidClient);
-					printf("client.pidChild: %d\n", (int)client.pidChild);
-					printf("client.identity: %s\n", client.identity);
-					printf("client.data: %s\n", client.data);
-					printf("client.status: %d\n", client.status);
+					activeClients++;
+					printf("Active clients %d\n", activeClients);
+					printf("Client connect pid: %ld\n", (long)client.pidChild);
+
 					printf("\n");
 			
 					addClient(client, emptySlot);
@@ -260,6 +268,13 @@ int main(int argc, char const *argv[])
 			}
 
 		}
+		
+		timeDif = MILLION*(timeEnd.tv_sec - timeStart.tv_sec) + timeEnd.tv_usec - timeStart.tv_usec;
+		printf("The milisecond %ld \n", timeDif); 
+		
+		end = clock();
+		timeSpent = (double)(end - begin) / CLOCKS_PER_SEC;
+		printf("%f\n", timeSpent);
 
 		/* Data reset */
 		memset(&client, 0, sizeof(struct _EXCP));
@@ -314,19 +329,52 @@ static void signalHandlerServer(int sign)
 {
 	if (sign == SIGUSR1)
 	{
-		pid_t childPid = waitpid(-1, NULL, 0);
+		int i;
+		pid_t childPid = wait(NULL);
+
+		for (i = 0; i < maxClients; ++i)
+		{
+			if (activeClientTable[i].pidChild == childPid)
+			{
+				unlink(activeClientTable[i].identity);
+				activeClients--;
+				break;
+			}
+		}
+
+		/* Current clients */
+		printf("%ld client disconnect!\n", activeClientTable[i].pidClient);
+		printf("Active clients %d\n\n", activeClients);
+
+		/* Delete client informations */
 		deleteClient(childPid);
 
-
+		/* Kill child process */
 		kill(childPid, SIGQUIT);
-		printf("%d died\n", (int)childPid);
-
-
 	}
 
 	if (sign == SIGINT)
 	{
+		for (int i = 0; i < maxClients; ++i)
+		{
+			if (activeClientTable[i].pidChild != 0)
+			{
+				kill(activeClientTable[i].pidClient, SIGTERM);
+				kill(activeClientTable[i].pidChild, SIGTERM);
 
+				unlink(activeClientTable[i].identity);
+
+				printf("Sending child: %ld\n", (long)activeClientTable[i].pidChild);
+				
+				wait(NULL);
+			}
+		}
+
+		/* Delete main connection */
+		unlink(GTU_PRO_NAM);
+
+		printf("\nSERVER OFF !\n");
+		exit(EXIT_SUCCESS);
 	}
 }
 
@@ -335,16 +383,7 @@ static void signalHandlerChild(int sign)
 
 	if (sign == SIGUSR1)
 	{
-		printf("Catch SIGUSR1\n");
-
-		for (int i = 0; i < maxClients; ++i)
-		{
-			if (activeClientTable[i].pidChild == getpid())
-			{
-				kill(activeClientTable[i].pidClient, SIGUSR2);
-				exit(EXIT_SUCCESS);
-			}
-		}
+		exit(EXIT_SUCCESS);
 	}
 
 	if (sign == SIGUSR2)
@@ -353,10 +392,23 @@ static void signalHandlerChild(int sign)
 		exit(EXIT_SUCCESS);
 	}
 
-	if (sign == SIGINT)
+	if (sign == SIGTERM)
 	{
+		exit(EXIT_SUCCESS);
 	}
 }
+
+/*****************************************************
+
+	FUNCTIONS:	TIMERS
+
+	SUMMERY	
+
+	COMMENTS
+
+*****************************************************/
+
+
 
 /*****************************************************
 

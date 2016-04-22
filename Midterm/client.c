@@ -17,6 +17,14 @@ int main(int argc, char const *argv[])
     int fdMainConnection;
     int fdNewSecureConnection;
 
+    /* Argumans */
+    struct _CALP CALP;
+    strcpy(CALP.fi, argv[1]);
+    CALP.operand = argv[4];
+    strcpy(CALP.fi, argv[1]);
+    CALP.timeInterval = atof(argv[3]);
+
+
     /*************************************
 
     *   SIGNALS

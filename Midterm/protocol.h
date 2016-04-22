@@ -5,10 +5,13 @@
 #include <errno.h>
 #include <unistd.h>
 #include <signal.h>
+#include <time.h>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <sys/time.h>
 
+/* Time define */
+#define MILLION 1000000L 
 
 #define BUFFER_SIZE 100
 
@@ -27,7 +30,6 @@ struct _EXCP	/* (Ex)tended (C)onnection (P)rotocol */
 
 struct _CALP	/* (C)alculate (A)rguman (L)ist (P)rotocol */
 {
-	unsigned long pid;
 	char fi[2];
 	char fj[2];
 	float timeInterval;
