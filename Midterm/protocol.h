@@ -3,11 +3,12 @@
 #include <string.h>
 #include <fcntl.h>
 #include <errno.h>
-#include <sys/stat.h>
-#include <sys/types.h>
 #include <unistd.h>
 #include <signal.h>
-#include <time.h>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <sys/time.h>
+
 
 #define BUFFER_SIZE 100
 

@@ -12,7 +12,6 @@ int main(int argc, char const *argv[])
     struct sigaction signalClient;
 
     /* Buffers */
-    char buffer[BUFFER_SIZE];
 
     /* Fifo variables */
     int fdMainConnection;
@@ -27,7 +26,8 @@ int main(int argc, char const *argv[])
     sigemptyset (&signalClient.sa_mask);
     signalClient.sa_flags = SA_RESETHAND;
 
-    sigaction(SIGINT, &signalClient, 0);
+    sigaction(SIGINT, &signalClient, NULL);
+    sigaction(SIGUSR2, &signalClient, NULL);
 
 
     /*
@@ -47,13 +47,13 @@ int main(int argc, char const *argv[])
     *   Send request EXCP packet
     */
     write(fdMainConnection, &EXCP, sizeof(struct _EXCP));
-        perror("Request sending");
+        perror("Request");
 
     /*
     *   Waiting response
     */
     read(fdMainConnection, &EXCP, sizeof(struct _EXCP));
-        perror("Response sending");
+        perror("Response");
 
     /*
     *   Close main connections
@@ -112,6 +112,13 @@ int main(int argc, char const *argv[])
 
 void signalHandlerClient(int sign)
 {
+
+    if (sign == SIGUSR2)
+    {
+        printf("Server shut down!\n");
+        exit(EXIT_SUCCESS);
+    }
+
     if (sign == SIGINT)
     {
         printf("Catch signal!\n");
@@ -119,9 +126,8 @@ void signalHandlerClient(int sign)
         exit(EXIT_SUCCESS);
     }
 
-    if (sign == SIGUSR2)
+    if (sign == SIGTERM)
     {
-        printf("Server not online!\n");
         exit(EXIT_SUCCESS);
     }
 }
