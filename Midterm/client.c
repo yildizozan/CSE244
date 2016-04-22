@@ -1,107 +1,127 @@
 #include "protocol.h"
 
 /* Signal */
-void  signalHanflerSIGINT(int);
+void  signalHandlerClient(int);
 
-static char serverPid[10];
 
 int main(int argc, char const *argv[])
 {
-	/* Buffers */
-	char buffer[BUFFER_SIZE];
-	char protocol[BUFFER_SIZE];
+    /* Protocol */
+    struct _EXCP EXCP;
 
-	/* Fifo variables */
-	int fdMainConnRequest;
-	int fdMainConnResponse;
+    /* Buffers */
+    char buffer[BUFFER_SIZE];
 
-	int fdSecureConnection;
+    /* Fifo variables */
+    int fdMainConnection;
+    int fdNewSecureConnection;
 
-	/*
-	*	 Open connection
-	*/
-	fdMainConnRequest = open(GTU_PRO_REQ, O_WRONLY);
-	fdMainConnResponse = open(GTU_PRO_RES, O_RDONLY);
+    /*************************************
 
-	/*************************************
+    *   SIGNALS
 
-	*	SIGNALS
+    *************************************/
 
-	*************************************/
+    signal(SIGHUP, signalHandlerClient);
+    signal(SIGINT, signalHandlerClient);
+    signal(SIGKILL, signalHandlerClient);
+    signal(SIGQUIT, signalHandlerClient);
+    signal(SIGUSR1, SIG_IGN);
+    signal(SIGUSR2, signalHandlerClient);
 
-	signal(SIGINT, signalHanflerSIGINT);
 
-	/*
-	*	Send request
-	*/
-	sprintf(buffer, "%lu", (unsigned long)getpid());
-	write(fdMainConnRequest, buffer, BUFFER_SIZE);
-	perror("Request sending");
+    /*
+    *   Send request
+    */ 
+    EXCP.pidClient = getpid();
+    EXCP.status = 1;
+    snprintf(EXCP.identity, GTU_PRO_LEN, GTU_PRO_SEC, (long)getpid());
+    printf("--Control identity %s\n", EXCP.identity);
 
-	/*
-	*	Waiting response
-	*/
-	read(fdMainConnResponse, buffer, BUFFER_SIZE);
-	perror("Response sending");
+    /*
+    *   Open main connection
+    */
+    fdMainConnection = open(GTU_PRO_NAM, O_RDWR);
 
-	/*
-	*	Close main connections
-	*/
-	close(fdMainConnRequest);
-	close(fdMainConnResponse);
+    /*
+    *   Send request EXCP packet
+    */
+    write(fdMainConnection, &EXCP, sizeof(struct _EXCP));
+        perror("Request sending");
 
-	if (strcmp(buffer, "1") == 0)
-	{
-		printf("Connected!\n");
-	}
-	else
-	{
-		printf("Not connected!\nExiting..");
-		return 0;
-	}
+    /*
+    *   Waiting response
+    */
+    read(fdMainConnection, &EXCP, sizeof(struct _EXCP));
+        perror("Response sending");
 
-	/******************************************
-	
-	*	Preparing secure connection
+    /*
+    *   Close main connections
+    */
+    close(fdMainConnection);
 
-	*******************************************/
-	sprintf(protocol, "%lu", (unsigned long)getpid());
-	snprintf(buffer, GTU_PRO_LEN, GTU_PRO_SEC, protocol);
-printf("----%s\n", buffer);
 
-	mkfifo(buffer, 0666);
-	fdSecureConnection = open(buffer, O_RDWR);
+    if (EXCP.status == -1)
+    {
+        printf("Server full!\nExiting..");
+        exit(EXIT_FAILURE);
+    }
+    if (EXCP.status != 2)
+    {
+        printf("Not new connection\nExiting..");
+        exit(EXIT_FAILURE);
+    }
 
-	read(fdSecureConnection, buffer, BUFFER_SIZE);
-	strcpy(serverPid, buffer);
+    /******************************************
+    
+    *   Preparing secure connection
 
-	/* Sending argümans */
-	while(1)
-	{
-		read(fdSecureConnection, buffer, BUFFER_SIZE);
-		printf("%s\n", buffer);
-	}
+    *******************************************/
+    printf("Connected!\n");
 
-	close(fdSecureConnection);
+    fdNewSecureConnection = open(EXCP.identity, O_RDWR);
 
-	return 0;
+    while(1)
+    {
+        read(fdNewSecureConnection, &EXCP, sizeof(struct _EXCP));
+
+printf("client.pidClient: %d\n", (int)EXCP.pidClient);
+printf("client.pidChild: %d\n", (int)EXCP.pidChild);
+printf("client.identity: %s\n", EXCP.identity);
+printf("client.data: %s\n", EXCP.data);
+printf("client.status: %d\n", EXCP.status);
+printf("\n");
+
+    }
+
+    close(fdNewSecureConnection);
+    
+
+    return 0;
 }
 
 /*****************************************************
 
-	FUNCTIONS:	Signals
+    FUNCTIONS:  Signals
 
-	SUMMERY	
+    SUMMERY 
 
-	COMMENTS
+    COMMENTS
 
 *****************************************************/
 
-void signalHanflerSIGINT(int sign)
+void signalHandlerClient(int sign)
 {
+    if ((sign == SIGHUP) || (sign == SIGINT) || (sign == SIGKILL) || (sign == SIGQUIT))
+    {
+        exit(EXIT_SUCCESS);
+    }
 
-	if(sign == SIGINT)
-
-		printf("Ctrl + C yakalandi\n");
-		exit(1);
+    if (sign == SIGUSR2)
+    {
+        signal(SIGUSR1, SIG_IGN);
+        
+        printf("Server not online!\n");
+        exit(EXIT_SUCCESS);
+    }
 }

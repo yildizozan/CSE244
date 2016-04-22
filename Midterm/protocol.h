@@ -11,17 +11,17 @@
 
 #define BUFFER_SIZE 100
 
-#define GTU_PRO_REQ	"Request"
-#define GTU_PRO_RES	"Respond"
-#define GTU_PRO_SEC	"xL457.GTU-%s.conn"
+#define GTU_PRO_NAM "Connection"
+#define GTU_PRO_SEC	"xL457.GTU-%ld.conn"
 #define GTU_PRO_LEN	(sizeof(GTU_PRO_SEC) + 10)
 
 struct _EXCP	/* (Ex)tended (C)onnection (P)rotocol */
 {
-	char pid[10];
-	char childPid[10];
+	pid_t pidClient;
+	pid_t pidChild;
 	char identity[GTU_PRO_LEN];
-	char status;
+	char data[BUFFER_SIZE];
+	int status;
 };
 
 struct _CALP	/* (C)alculate (A)rguman (L)ist (P)rotocol */
@@ -33,18 +33,13 @@ struct _CALP	/* (C)alculate (A)rguman (L)ist (P)rotocol */
 	char operand;
 };
 
-struct _childProcessesTable
-{
-	char childPid[10];
-};
-
-
 /*
 Status codes:
 
+-1	Server full
+-----------------
 0	Ilk baglanti istegi
 1	Register edildi sorun yok
-3	Server full
 
 4	Server send new data to client
 5	Client read new data from server

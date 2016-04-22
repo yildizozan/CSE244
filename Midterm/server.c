@@ -25,11 +25,8 @@
 
 #include "protocol.h"
 
-void addMember(const char clientName[10], const char childName[10], const unsigned int i);
-void deleteMember(const int i);
-
-void addChild(const char[10]);
-void deleteChild(const char[10]);
+void addClient(struct _EXCP client, const int i);
+void deleteClient(pid_t pidClient);
 
 /* Signal */
 void  signalHandlerServer(int);
@@ -42,7 +39,6 @@ void openingStyle2(void);
 
 
 /* Global variables */
-static struct _childProcessesTable childProcessesTable[255];
 static struct _EXCP activeClientTable[255];
 static int maxClients;
 static int activeClients = 0;
@@ -52,8 +48,12 @@ static int activeClients = 0;
 
 int main(int argc, char const *argv[])
 {
+	/* Protocol */
+    struct _EXCP EXCP, client;
+
 	/* Counters */
 	int i;
+	int status;
 
 	/* Control variables */
 	int disconnect;
@@ -61,30 +61,25 @@ int main(int argc, char const *argv[])
 
 	/* Buffers */
 	char buffer[BUFFER_SIZE];
-	char clientName[10];
-	char childName[10];
+
+	/* Fifo variables */
+	int fdMainConnection;
+	char nameNewSecureConnection[BUFFER_SIZE];
+	int fdNewSecureConnection;
 
 	/* Pipe variables */
 	int pipeDescriptionForServerClient[2];
 
-	/* Fifo variables */
-	int fdMainConnRequest;
-	int fdMainConnResponse;
-	char nameNewSecureConnection[BUFFER_SIZE];
-	int fdNewSecureConnection;
-
-
 	/* Fork variables */
-	unsigned long childPid;
+	pid_t childPid;
 
 	/* Argumans vaariables */
 /*	float resulution = atof(argv[1]);*/
 	maxClients = atoi(argv[2]);
 
-
 	/*************************************
 
-	*	SIGNALS
+	*   SIGNALS
 
 	*************************************/
 
@@ -96,458 +91,187 @@ int main(int argc, char const *argv[])
 	signal(SIGUSR2, SIG_IGN);
 
 
-	/*************************************
-
-	*	OPENING
-
-	*************************************/
-	if ((childPid = fork()) == 0) /* Child */
-	{
-		openingStyle2();
-		exit(EXIT_SUCCESS);
-	}
-	else /* Main */
-	{
-		/* Açılışı yapan bay child process must die */
-		
-		kill(wait(NULL), SIGKILL);
-
-		/*************************************
-
-		*	PREPARE SERVER
-
-		*************************************/
-
-		/*
-		*	Active client table reset
-		*/
-		for (i = 0; i < maxClients; ++i)
-			strcpy(activeClientTable[i].pid, "");
-
-		for (i = 0; i < maxClients; ++i)
-			strcpy(childProcessesTable[i].childPid, "");
-
-		
-		/*
-		*	Creating FIFOs
-		*/
-		if ((mkfifo(GTU_PRO_REQ, 0666)) && (errno != EEXIST))
-		{
-			perror("Error 659");
-			exit(EXIT_FAILURE);
-		}
-		if ((mkfifo(GTU_PRO_REQ, 0666)) && (errno != EEXIST))
-		{
-			perror("Error 236");
-			exit(EXIT_FAILURE);
-		}
-
-
-		/*
-		*	Open FIFOs for read and write
-		*/
-		fdMainConnRequest = open(GTU_PRO_REQ, O_RDONLY);
-		fdMainConnResponse = open(GTU_PRO_RES, O_WRONLY);
-	}
-
 	/*
-	*	Server ON!
+	*	Prepare server
 	*/
 
-	printf("Active clients %d, Waiting client(s)..\n", activeClients);
+	for ( i = 0; i < maxClients; ++i)
+		activeClientTable[i].pidClient = 0;
 
-	while (1)
+
+
+	mkfifo(GTU_PRO_NAM, 0666);
+	fdMainConnection = open(GTU_PRO_NAM, O_RDWR);
+
+	while(1)
 	{
-		/* Control resets */
+		/* Reset variables */
 		disconnect = 0;
 
 		/*
-		*	Waiting a client
+		*	Waiting client
 		*/
-		read(fdMainConnRequest, buffer, BUFFER_SIZE);
+		read(fdMainConnection, &EXCP, sizeof(struct _EXCP));
 
-		if (strcmp("exit", buffer) == 0)
 		{
-			printf("Server OFF.\n");
-			break;
+			client.pidClient = EXCP.pidClient;
+			client.status = EXCP.status;
+			strcpy(client.identity, EXCP.identity);
 		}
 
-		else if (strcmp("", buffer) != 0)
+		/*
+		*	Gelen talebi inceliyoruz
+		*/
+		if (EXCP.status == -1)
 		{
+			printf("Error %d\n", EXCP.status);
+		}
+		else if (EXCP.status == 1)
+		{
+			/* Register için boş yer arıyoruz */
+			for (i = 0; i < maxClients; ++i)
+				if (activeClientTable[i].pidClient == 0)
+					emptySlot = i;
+
+
 			/*
-			*	Server capacity control 
+			*	Maximum kullanici sayisina ulasildiysa eger
 			*/
 			if (activeClients == maxClients)
 			{
-				sprintf(buffer, "3");
-
-				/* Server send server full message */
-				write(fdMainConnResponse, buffer, BUFFER_SIZE);
-
-				/* Clean buffer data */
-				memset(buffer, 0, sizeof(buffer));
-
+				EXCP.status = -1;
+				write(fdMainConnection, &EXCP, sizeof(struct _EXCP));
 				continue;
 			}
 
 			/*
-			*	Client zaten bagli mi diye kontrol ediyoruz
-			*	Eger zaten bagli ise disconnect yollayacagiz illegal bir durum
+			*	Prepare protocol
 			*/
-			for (i = 0; i < maxClients; ++i)
+			snprintf(buffer, GTU_PRO_LEN, GTU_PRO_SEC, (unsigned long)EXCP.pidClient);
+			strcpy(EXCP.identity, buffer);
+			strcpy(client.identity, EXCP.identity);			
+			EXCP.status = 2;
+			write(fdMainConnection, &EXCP, sizeof(struct _EXCP));
+
+			mkfifo(EXCP.identity, 0666);
+			pipe(pipeDescriptionForServerClient);
+			if ((childPid = fork()) < 0)
 			{
-				if (strcmp(activeClientTable[i].pid, buffer) == 0)
-				{
-					sprintf(buffer, "9");
-					write(fdMainConnResponse, buffer, BUFFER_SIZE);
-					deleteMember(i);
-					disconnect = 1;
-					break;
-				}
-
-				if (strcmp(activeClientTable[i].pid, "") == 0)
-					emptySlot = i;
-			}
-
-
-			/*
-			*	Client bagli ise bos geciyoruz
-			*	Eger bagli degilse register edecegiz
-			*/
-			if (disconnect == 1)
-			{
-				continue;
+				perror("Error 156");
 			}
 			else
 			{
-				printf("Client: %s want to connect..\n", buffer);
-				strcpy(clientName, buffer);
-
-				/* Sending access */
-				sprintf(buffer, "1");
-				write(fdMainConnResponse, buffer, BUFFER_SIZE);
-
 				/*
-				*	Server:
-				*	create new connection protocol
-				*	create pipe for child process communication
-				*	create fifo for new client connection
-				*	create child process
+				*	Child process
 				*/
-
-				/* Create protocol */
-				snprintf(nameNewSecureConnection, GTU_PRO_LEN, GTU_PRO_SEC, clientName);
-				strcpy(buffer, nameNewSecureConnection);
-				write(fdMainConnResponse, buffer, BUFFER_SIZE);
-
-				/*
-				*	Named pipe
-				*	Pipe
-				*	Fork
-				*/
-				mkfifo(nameNewSecureConnection, 0666);
-				pipe(pipeDescriptionForServerClient);
-				childPid = fork();
-
 				if (childPid == 0)
 				{
-					int a = 0;
+					int a = 0; /* DElete */
 
 					/*************************************
 
-					*	SIGNALS
+					*   SIGNALS
 
 					*************************************/
 
-					signal(SIGHUP, signalHandlerServer);
-					signal(SIGINT, signalHandlerServer);
-					signal(SIGKILL, signalHandlerServer);
-					signal(SIGQUIT, signalHandlerServer);
-					signal(SIGUSR1, signalHandlerServer);
-					signal(SIGUSR2, signalHandlerServer);
+					signal(SIGHUP, signalHandlerChild);
+					signal(SIGINT, signalHandlerChild);
+					signal(SIGKILL, signalHandlerChild);
+					signal(SIGQUIT, signalHandlerChild);
+					signal(SIGUSR1, signalHandlerChild);
+					signal(SIGUSR2, SIG_IGN);
 
-					/* Parent sending client information with pipe */
-					snprintf(buffer, BUFFER_SIZE, "%lu", (unsigned long)getpid());
+					/* Child kendi bilgilerini doldurup parenta yolluyor */
+					EXCP.pidChild = getpid();
 
 					close(pipeDescriptionForServerClient[0]);
-					write(pipeDescriptionForServerClient[1], buffer, BUFFER_SIZE);
+					write(pipeDescriptionForServerClient[1], &EXCP, sizeof(struct _EXCP));
 					close(pipeDescriptionForServerClient[1]);
 
-					/* Open secure connection */
-					fdNewSecureConnection = open(nameNewSecureConnection, O_RDWR);	
-printf("---%s\n", nameNewSecureConnection);
-					/*
-					*	Client kayıt etmesi için kendi pid mizi yolluyoruz
-					*/
-					write(fdNewSecureConnection, buffer, BUFFER_SIZE);
+					close(pipeDescriptionForServerClient[1]);
+					write(pipeDescriptionForServerClient[0], &EXCP, sizeof(struct _EXCP));
+					close(pipeDescriptionForServerClient[0]);
+
+
+					fdNewSecureConnection = open(EXCP.identity, O_RDWR);
 
 					while(1)
-					{	
-						snprintf(buffer, BUFFER_SIZE, "%d", a++);
-
-						write(fdNewSecureConnection, buffer, BUFFER_SIZE);
-
-						sleep(2);
+					{
+						a++;
+						EXCP.status = a;
+						write(fdNewSecureConnection, &EXCP, sizeof(struct _EXCP));
+						sleep(1);
 					}
 
 					close(fdNewSecureConnection);
-					unlink(nameNewSecureConnection);
-					exit(EXIT_SUCCESS);
-
 				}
-				if (childPid > 0)
-				{
-
-					/* Parent sending client information with pipe */
+				/*
+				*	Parent
+				*/
+				else
+				{	
+					/*
+					*	Child kendi pid sini yollayacak
+					*	Parent ise bunu kullanarak register edecek
+					*/
 					close(pipeDescriptionForServerClient[1]);
-					read(pipeDescriptionForServerClient[0], buffer, BUFFER_SIZE);
+					read(pipeDescriptionForServerClient[0], &EXCP, sizeof(struct _EXCP));
 					close(pipeDescriptionForServerClient[0]);
 
-					strcpy(childName, buffer);
 
-					addMember(clientName, childName, emptySlot);
-					activeClients++;
+					/* 
+					*	Child kimligi eklendi client yapısına
+					*/
+					client.pidChild = EXCP.pidChild;
 
-					snprintf(buffer, 10, "%lu", childPid);
-					strcpy(activeClientTable[emptySlot].childPid, buffer);
+					/*
+					*	Tamamlanmış bilgiler gidiyor artık
+					*/
+					close(pipeDescriptionForServerClient[0]);
+					read(pipeDescriptionForServerClient[1], &client, sizeof(struct _EXCP));
+					close(pipeDescriptionForServerClient[1]);
 
-					printf("Connection is successful!\n");
-					printf("Active clients: %d\n", activeClients);
+					/*
+					*	Register ediyoruz artık sorun yok
+					*/
+					addClient(client, emptySlot);
+
+printf("client.pidClient: %d\n", (int)client.pidClient);
+printf("client.pidChild: %d\n", (int)client.pidChild);
+printf("client.identity: %s\n", client.identity);
+printf("client.data: %s\n", client.data);
+printf("client.status: %d\n", client.status);
+printf("\n");
 
 
-					/* CONTROL ACTIVE CLIENTS */
-					for (i = 0; i < maxClients; ++i)
-					{
-						printf("%d. Client %s\n", i+1, activeClientTable[i].pid);
-					}
-					for (i = 0; i < maxClients; ++i)
-					{
-						printf("%d. Child  %s\n", i+1, childProcessesTable[i].childPid);
-					}
 				}
-				else
-				{
-					printf("Error 1894: Chil olmuyor tup bebek gerek..\n");
-				}
-
-			} /* end if else (Register) */
-
-
-		} /* end if else (Request control) */
-
-		/* Clean buffer data */
-		memset(buffer, 0, sizeof(buffer));
-	}
-
-	close(fdMainConnRequest);
-	close(fdMainConnResponse);
-
-	unlink(GTU_PRO_REQ);
-	unlink(GTU_PRO_RES);
-
-	return 0;
-}
-
-/*****************************************************
-
-	FUNCTIONS:	Signals
-
-	SUMMERY	
-
-	COMMENTS
-
-*****************************************************/
-
-void signalHandlerServer(int sign)
-{
-	int i;
-	char childName[10];
-
-	if (sign == SIGHUP || sign == SIGINT || sign == SIGKILL || sign == SIGQUIT)
-	{
-		exit(EXIT_SUCCESS);
-	}
-
-	if (sign == SIGUSR1)
-	{	
-		printf("Parent SIGUSR1 yakaladı\n");
-
-		pid_t childPid = waitpid(-1, NULL, 0);
-		
-		snprintf(childName, 10, "%lu", (unsigned long)childPid);
-
-		for (i = 0; i < maxClients; ++i)
-			if (strcmp(activeClientTable[i].childPid, childName) == 0)
-			{
-				printf("Merhaba\n");
-				deleteMember(i);
-
-				activeClients--;
-				break;
 			}
 
-		printf("Active clients: %d\n", activeClients);
-
-		/* CONTROL ACTIVE CLIENTS */
-		for (i = 0; i < maxClients; ++i)
-		{
-			printf("%d. Client %s\n", i+1, activeClientTable[i].pid);
-		}
-		for (i = 0; i < maxClients; ++i)
-		{
-			printf("%d. Child  %s\n", i+1, childProcessesTable[i].childPid);
 		}
 
+		/*
+		*	Clean data
+		*/
 	}
 
+	close(fdMainConnection);
 
+    return 0;
 }
 
-void signalHandlerChild(int sign)
+void addClient(struct _EXCP client, const int i)
 {
-	char childName[10];
 
-	if (sign == SIGHUP || sign == SIGINT || sign == SIGKILL || sign == SIGQUIT)
-	{
-		for (int i = 0; i < maxClients; ++i)
-			kill(atoi(activeClientTable[i].pid), SIGUSR2);
-
-		exit(EXIT_SUCCESS);
-	}
-
-
-	if (sign == SIGUSR1)
-	{
-		printf("Parent mesaj yolladı\n");
-		snprintf(childName, 10, "%lu", (unsigned long)getpid());
-
-		for (int i = 0; i < maxClients; ++i)
-		{
-			if (strcmp(activeClientTable[i].childPid, childName) == 0)
-			{
-				kill(atoi(activeClientTable[i].pid), SIGUSR2);
-			}
-		}
-
-		exit(EXIT_SUCCESS);
-	}
-
-	if (sign == SIGUSR2)
-	{
-		printf("Child SIGUSR2 yakaladı\n");
-		kill(getppid(), SIGUSR1);
-		exit(EXIT_SUCCESS);
-	}
 }
 
-
-/*****************************************************
-
-	FUNCTIONS:	Client add and delete
-
-	SUMMERY	
-
-	COMMENTS
-
-*****************************************************/
-void addMember(const char clientName[10], const char childName[10], const unsigned int i)
-{
-	strcpy(activeClientTable[i].pid, clientName);
-	strcpy(activeClientTable[i].childPid, childName);
-	strcpy(childProcessesTable[i].childPid, childName);
-}
-	
-void deleteMember(const int i)
-{
-	strcpy(activeClientTable[i].pid, "");
-	strcpy(activeClientTable[i].childPid, "");
-	strcpy(childProcessesTable[i].childPid, "");
-}
-
-/*****************************************************
-
-	FUNCTIONS:	Child process add and delete
-
-	SUMMERY	
-
-	COMMENTS
-
-*****************************************************/
-void addChild(const char childPid[10])
+void deleteClient(pid_t pidClient)
 {
 	int i;
 	for (i = 0; i < maxClients; ++i)
-		if(strcmp(childProcessesTable[i].childPid, "") == 0)
-		{
-			strcpy(childProcessesTable[i].childPid, childPid);
-			break;
-		}
-
-	/* Control child status */
-	for (i = 0; i < maxClients; ++i)
 	{
-		printf("Child durum:  %s\n", childProcessesTable[i].childPid);
+		if (activeClientTable[i].pidClient == pidClient)
+		{
+			activeClientTable[i].pidClient = 0;
+		}
 	}
 }
-
-void deleteChild(const char childPid[10])
-{
-	int i;
-	for (i = 0; i < maxClients; ++i)
-		if(strcmp(childProcessesTable[i].childPid, childPid) == 0)
-			strcpy(childProcessesTable[i].childPid, "");
-}
-
-
-/*****************************************************
-
-	FUNCTIONS:	Opening style
-
-	SUMMERY	
-
-	COMMENTS
-
-*****************************************************/
-
-void openingStyle1(void)
-{
-	printf(" _______  _______  ______    __   __  _______  ______      __   __  ____\n");
-	printf("|       ||       ||    _ |  |  | |  ||       ||    _ |    |  | |  ||    |\n");
-usleep(500000);
-	printf("|  _____||    ___||   | ||  |  |_|  ||    ___||   | ||    |  |_|  | |   |\n");
-usleep(500000);
-	printf("| |_____ |   |___ |   |_||_ |       ||   |___ |   |_||_   |       | |   |\n");
-usleep(500000);
-	printf("|_____  ||    ___||    __  ||       ||    ___||    __  |  |       | |   |\n");
-usleep(500000);
-	printf(" _____| ||   |___ |   |  | | |     | |   |___ |   |  | |   |     |  |   |\n");
-usleep(500000);
-	printf("|_______||_______||___|  |_|  |___|  |_______||___|  |_|    |___|   |___|\n");
-	printf("\n");
-usleep(500000);
-	printf("                                                   Created by Ozan Yıldız\n");
-	printf("SERVER ON!..\n");
-	printf("\n");
-}
-
-void openingStyle2(void)
-{
-	printf("\n");
-	printf(".d8888. d88888b d8888b. db    db d88888b d8888b.      db    db  db\n");
-usleep(200000);
-	printf("88'  YP 88'     88  `8D 88    88 88'     88  `8D      88    88 o88\n");
-usleep(200000);
-	printf("`8bo.   88ooooo 88oobY' Y8    8P 88ooooo 88oobY'      Y8    8P  88\n");
-usleep(200000);
-	printf("  `Y8b. 88~~~~~ 88`8b   `8b  d8' 88~~~~~ 88`8b        `8b  d8'  88\n");
-usleep(200000);
-	printf("db   8D 88.     88 `88.  `8bd8'  88.     88 `88.       `8bd8'   88\n");
-usleep(200000);
-	printf("`8888Y' Y88888P 88   YD    YP    Y88888P 88   YD         YP     VP\n");
-	printf("\n");
-usleep(200000);
-	printf("                                            Created by Ozan Yıldız\n");
-	printf("SERVER ON!..\n");
-	printf("\n");
-}
-
