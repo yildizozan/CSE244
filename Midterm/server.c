@@ -25,15 +25,15 @@
 
 #include "protocol.h"
 
-void addClient(const char clientName[BUFFER_SIZE], const unsigned int i);
+void addClient(const char clientName[10], const unsigned int i);
 void deleteClient(const char clientName[BUFFER_SIZE]);
 
-void addChild(const pid_t childPid);
-void deleteChild(const pid_t childPid);
+void addChild(const char[10]);
+void deleteChild(const char[10]);
 
 /* Signal */
-void  signalHanflerSIGINT(int);
-void  signalHanflerSIGQUIT(int);
+void  signalHandlerServer(int);
+void signalHandlerChild(int sign);
 
 /* Other functions */
 void openingStyle1(void);
@@ -42,9 +42,11 @@ void openingStyle2(void);
 
 
 /* Global variables */
-static pid_t childPrecessesTable[255];
+static struct _childProcessesTable childProcessesTable[255];
 static struct _EXCP activeClientTable[255];
 static int maxClients;
+static int activeClients = 0;
+
 
 
 
@@ -54,7 +56,6 @@ int main(int argc, char const *argv[])
 	int i;
 
 	/* Control variables */
-	int activeClients = 0;
 	int disconnect;
 	int emptySlot;
 
@@ -72,7 +73,7 @@ int main(int argc, char const *argv[])
 
 
 	/* Fork variables */
-	pid_t childPid;
+	unsigned long childPid;
 
 	/* Argumans vaariables */
 /*	float resulution = atof(argv[1]);*/
@@ -85,7 +86,12 @@ int main(int argc, char const *argv[])
 
 	*************************************/
 
-	signal(SIGINT, signalHanflerSIGINT);
+	signal(SIGHUP, signalHandlerServer);
+	signal(SIGINT, signalHandlerServer);
+	signal(SIGKILL, signalHandlerServer);
+	signal(SIGQUIT, signalHandlerServer);
+	signal(SIGUSR1, signalHandlerServer);
+	signal(SIGUSR2, SIG_IGN);
 
 
 	/*************************************
@@ -93,22 +99,31 @@ int main(int argc, char const *argv[])
 	*	OPENING
 
 	*************************************/
-	if (fork() == 0) /* Child */
+	if ((childPid = fork()) == 0) /* Child */
 	{
 		openingStyle2();
 		exit(EXIT_SUCCESS);
 	}
 	else /* Main */
 	{
+		/* Açılışı yapan bay child process must die */
+		
+		kill(wait(NULL), SIGKILL);
+
 		/*************************************
 
 		*	PREPARE SERVER
 
 		*************************************/
 
-		/* Table reset */
+		/*
+		*	Active client table reset
+		*/
 		for (i = 0; i < maxClients; ++i)
 			strcpy(activeClientTable[i].pid, "");
+
+		for (i = 0; i < maxClients; ++i)
+			strcpy(childProcessesTable[i].childPid, "");
 
 		
 		/*
@@ -132,8 +147,6 @@ int main(int argc, char const *argv[])
 		fdMainConnRequest = open(GTU_PRO_REQ, O_RDONLY);
 		fdMainConnResponse = open(GTU_PRO_RES, O_WRONLY);
 	}
-
-
 
 	/*
 	*	Server ON!
@@ -218,10 +231,7 @@ int main(int argc, char const *argv[])
 				*	create child process
 				*/
 				/* Create protocol */
-				snprintf(nameNewSecureConnection, 
-					GTU_PRO_LEN,
-					GTU_PRO_SEC,
-					activeClientTable[emptySlot].pid);
+				snprintf(nameNewSecureConnection, GTU_PRO_LEN, GTU_PRO_SEC, activeClientTable[emptySlot].pid);
 
 				/*
 				*	Named pipe
@@ -236,21 +246,42 @@ int main(int argc, char const *argv[])
 				{
 					int a = 0;
 
+					/*************************************
+
+					*	SIGNALS
+
+					*************************************/
+
+					signal(SIGHUP, signalHandlerChild);
+					signal(SIGINT, SIG_IGN);
+					signal(SIGKILL, signalHandlerChild);
+					signal(SIGQUIT, signalHandlerChild);
+					signal(SIGUSR1, signalHandlerChild);
+					signal(SIGUSR2, signalHandlerChild);
+
 					/* Waiting client connection protocol from server */
-					close(pipeDescriptionForServerClient[1]);
-					read(pipeDescriptionForServerClient[0], buffer, BUFFER_SIZE);
+					snprintf(buffer, BUFFER_SIZE, "%lu", (unsigned long)getpid());
+					write(pipeDescriptionForServerClient[0], buffer, BUFFER_SIZE);
 					close(pipeDescriptionForServerClient[0]);
 
-					strcpy(nameNewSecureConnection, buffer);
+
 
 					/* Open secure connection */
 					fdNewSecureConnection = open(nameNewSecureConnection, O_RDWR);	
+
+					/*
+					*	Client kayıt etmesi için kendi pid mizi yolluyoruz
+					*/
+					snprintf(buffer, BUFFER_SIZE, "%lu", (unsigned long)getpid());
+					write(fdNewSecureConnection, buffer, BUFFER_SIZE);
+
 
 					while(1)
 					{	
 						snprintf(buffer, BUFFER_SIZE, "%d", a++);
 
 						write(fdNewSecureConnection, buffer, BUFFER_SIZE);
+
 						sleep(1);
 					}
 
@@ -262,12 +293,15 @@ int main(int argc, char const *argv[])
 				if (childPid > 0)
 				{
 					/* Parent sending client information with pipe */
-					close(pipeDescriptionForServerClient[0]);
-					sprintf(buffer, nameNewSecureConnection);
-					write(pipeDescriptionForServerClient[1], buffer, BUFFER_SIZE);
+					read(pipeDescriptionForServerClient[1], buffer, BUFFER_SIZE);
 					close(pipeDescriptionForServerClient[1]);
-					addChild(childPid);
+
+					addChild(buffer);
 					activeClients++;
+
+					snprintf(buffer, 10, "%lu", childPid);
+					strcpy(activeClientTable[emptySlot].childPid, buffer);
+
 					printf("Connection is successful!\n");
 					printf("Active clients: %d\n", activeClients);
 
@@ -296,10 +330,8 @@ int main(int argc, char const *argv[])
 
 	unlink(GTU_PRO_REQ);
 	unlink(GTU_PRO_RES);
-	return 0;
 
-	while(wait(NULL) < 0)
-		printf("bekliyor valla amk\n");
+	return 0;
 }
 
 /*****************************************************
@@ -312,39 +344,79 @@ int main(int argc, char const *argv[])
 
 *****************************************************/
 
-void signalHanflerSIGINT(int sign)
-{
-	char choice;
-
-	signal(sign, SIG_IGN);
-
-	printf("Do you really want to quit? [y/n] ");
-	choice = getchar();
-
-	if (choice == 'y' || choice == 'Y')
-		exit(EXIT_SUCCESS);
-	else
-		signal(SIGINT, signalHanflerSIGINT);
-	getchar();
-
-
-/*
-		for (i = 0; i < maxClients; ++i)
-		{
-			activeClientTable[i].pid
-		}
-*/
-}
-
-void signalHanflerSIGQUIT(int sign)
+void signalHandlerServer(int sign)
 {
 	int i;
-	if(sign == SIGINT)
-		for (i = 0; i < maxClients; ++i)
-		{
-			printf("Ctrl + C yakalandi\n");
-		}
+	char childName[10];
+
+	if (sign == SIGHUP || sign == SIGINT || sign == SIGKILL || sign == SIGQUIT)
+	{
+
+		for (int i = 0; i < 255; ++i)
+			kill(atoi(childProcessesTable[i].childPid), SIGUSR1);
+
+
+		exit(EXIT_SUCCESS);
+	}
+
+	if (sign == SIGUSR1)
+	{
+		pid_t childPid = waitpid(-1, NULL, 0);
+		
+		snprintf(childName, 10, "%lu", (unsigned long)childPid);
+
+printf("----------%lu\n", (unsigned long)childPid);
+
+/* Control child status */
+for (i = 0; i < maxClients; ++i)
+{
+	printf("Child durum:  %s\n", childProcessesTable[i].childPid);
 }
+
+		for (i = 0; i < maxClients; ++i);
+			if (strcmp(activeClientTable[i].childPid, childName) == 0)
+			{
+				printf("Merhaba\n");
+				deleteClient(activeClientTable[i].pid);
+
+				activeClients--;
+			}
+
+			printf("Active clients: %d\n", activeClients);
+
+			/* CONTROL ACTIVE CLIENTS */
+			for (i = 0; i < maxClients; ++i)
+			{
+				printf("%d. client %s\n", i+1, activeClientTable[i].pid);
+			}
+	}
+
+
+}
+
+void signalHandlerChild(int sign)
+{
+	if (sign == SIGHUP || sign == SIGINT || sign == SIGKILL || sign == SIGQUIT)
+		for (int i = 0; i < 255; ++i)
+			kill(atoi(activeClientTable[i].pid), SIGUSR2);
+
+	if (sign == SIGUSR1)
+	{
+		signal(SIGUSR2, SIG_IGN);
+
+		exit(EXIT_SUCCESS);
+	}
+
+	if (sign == SIGUSR2)
+	{
+		signal(SIGUSR1, SIG_IGN);
+
+		kill(getppid(), SIGUSR1);
+
+		exit(EXIT_SUCCESS);
+	}
+}
+
 
 /*****************************************************
 
@@ -355,13 +427,14 @@ void signalHanflerSIGQUIT(int sign)
 	COMMENTS
 
 *****************************************************/
-void addClient(const char clientName[10], const unsigned int i)
+void addClient(const char clientName[BUFFER_SIZE], const unsigned int i)
 {
 	strcpy(activeClientTable[i].pid, clientName);
 }
 
-void deleteClient(const char clientName[10])
+void deleteClient(const char clientName[BUFFER_SIZE])
 {
+	printf("Client cikis yapiyor..\n");
 	int i;
 	for (i = 0; i < maxClients; ++i)
 		if (strcmp(activeClientTable[i].pid, clientName))
@@ -377,20 +450,29 @@ void deleteClient(const char clientName[10])
 	COMMENTS
 
 *****************************************************/
-void addChild(const pid_t childPid)
+void addChild(const char childPid[10])
 {
 	int i;
 	for (i = 0; i < maxClients; ++i)
-		if (childPrecessesTable[i] == NULL)
-			childPrecessesTable[i] == childPid;
+		if(strcmp(childProcessesTable[i].childPid, "") == 0)
+		{
+			strcpy(childProcessesTable[i].childPid, childPid);
+			break;
+		}
+
+	/* Control child status */
+	for (i = 0; i < maxClients; ++i)
+	{
+		printf("Child durum:  %s\n", childProcessesTable[i].childPid);
+	}
 }
 
-void deleteChild(const pid_t childPid)
+void deleteChild(const char childPid[10])
 {
 	int i;
 	for (i = 0; i < maxClients; ++i)
-		if (childPrecessesTable[i] == childPid)
-			childPrecessesTable[i] == NULL;
+		if(strcmp(childProcessesTable[i].childPid, childPid) == 0)
+			strcpy(childProcessesTable[i].childPid, "");
 }
 
 

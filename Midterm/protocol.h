@@ -19,9 +19,9 @@
 struct _EXCP	/* (Ex)tended (C)onnection (P)rotocol */
 {
 	char pid[10];
+	char childPid[10];
 	char identity[GTU_PRO_LEN];
 	char status;
-	char message[BUFFER_SIZE];
 };
 
 struct _CALP	/* (C)alculate (A)rguman (L)ist (P)rotocol */
@@ -33,16 +33,22 @@ struct _CALP	/* (C)alculate (A)rguman (L)ist (P)rotocol */
 	char operand;
 };
 
+struct _childProcessesTable
+{
+	char childPid[10];
+};
+
 
 /*
 Status codes:
 
 0	Ilk baglanti istegi
 1	Register edildi sorun yok
+3	Server full
 
 4	Server send new data to client
 5	Client read new data from server
-
+7	Client kapaniyor.
 8	Server kapaniyor. Disconnect.
 9	Client zaten kayitli disconnect.
 */
