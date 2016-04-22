@@ -1,12 +1,9 @@
 #include "protocol.h"
 
 /* Signal */
-void  signalHandlerClient(int);
+void  signalHanflerSIGINT(int);
 
-/* Global variables */
-static int fdSecureConnection;
-static unsigned long serverChildPid;
-
+static char serverPid[10];
 
 int main(int argc, char const *argv[])
 {
@@ -17,6 +14,8 @@ int main(int argc, char const *argv[])
 	/* Fifo variables */
 	int fdMainConnRequest;
 	int fdMainConnResponse;
+
+	int fdSecureConnection;
 
 	/*
 	*	 Open connection
@@ -30,12 +29,7 @@ int main(int argc, char const *argv[])
 
 	*************************************/
 
-	signal(SIGHUP, signalHandlerClient);
-	signal(SIGINT, signalHandlerClient);
-	signal(SIGKILL, signalHandlerClient);
-	signal(SIGQUIT, signalHandlerClient);
-	signal(SIGUSR1, signalHandlerClient);
-	signal(SIGUSR2, signalHandlerClient);
+	signal(SIGINT, signalHanflerSIGINT);
 
 	/*
 	*	Send request
@@ -60,14 +54,9 @@ int main(int argc, char const *argv[])
 	{
 		printf("Connected!\n");
 	}
-	else if (strcmp(buffer, "3") == 0)
-	{
-		printf("Server full\nExiting..\n");
-		return 0;
-	}
 	else
 	{
-		printf("Not connected!\nExiting..\n");
+		printf("Not connected!\nExiting..");
 		return 0;
 	}
 
@@ -83,12 +72,9 @@ printf("----%s\n", buffer);
 	mkfifo(buffer, 0666);
 	fdSecureConnection = open(buffer, O_RDWR);
 
-	/*
-	*	Child process kendi pid değerini bekliyor
-	*/
 	read(fdSecureConnection, buffer, BUFFER_SIZE);
-	serverChildPid = atoi(buffer);
-printf("---%lu\n", serverChildPid);
+	strcpy(serverPid, buffer);
+
 	/* Sending argümans */
 	while(1)
 	{
@@ -111,19 +97,11 @@ printf("---%lu\n", serverChildPid);
 
 *****************************************************/
 
-void signalHandlerClient(int sign)
+void signalHanflerSIGINT(int sign)
 {
-	if ((sign == SIGHUP) || (sign == SIGINT) || (sign == SIGKILL) || (sign == SIGQUIT))
-	{
-		kill(serverChildPid, SIGUSR2);
-		exit(EXIT_SUCCESS);
-	}
 
-	if (sign == SIGUSR2)
-	{
-		signal(SIGUSR1, SIG_IGN);
-		
-		printf("Server not online!\n");
-		exit(EXIT_SUCCESS);
-	}
+	if(sign == SIGINT)
+
+		printf("Ctrl + C yakalandi\n");
+		exit(1);
 }

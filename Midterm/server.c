@@ -234,8 +234,11 @@ int main(int argc, char const *argv[])
 				*	create fifo for new client connection
 				*	create child process
 				*/
+
 				/* Create protocol */
-				snprintf(nameNewSecureConnection, GTU_PRO_LEN, GTU_PRO_SEC, activeClientTable[emptySlot].pid);
+				snprintf(nameNewSecureConnection, GTU_PRO_LEN, GTU_PRO_SEC, clientName);
+				strcpy(buffer, nameNewSecureConnection);
+				write(fdMainConnResponse, buffer, BUFFER_SIZE);
 
 				/*
 				*	Named pipe
@@ -256,29 +259,27 @@ int main(int argc, char const *argv[])
 
 					*************************************/
 
-					signal(SIGHUP, signalHandlerChild);
-					signal(SIGINT, SIG_IGN);
-					signal(SIGKILL, signalHandlerChild);
-					signal(SIGQUIT, signalHandlerChild);
-					signal(SIGUSR1, signalHandlerChild);
-					signal(SIGUSR2, signalHandlerChild);
+					signal(SIGHUP, signalHandlerServer);
+					signal(SIGINT, signalHandlerServer);
+					signal(SIGKILL, signalHandlerServer);
+					signal(SIGQUIT, signalHandlerServer);
+					signal(SIGUSR1, signalHandlerServer);
+					signal(SIGUSR2, signalHandlerServer);
 
-					/* Waiting client connection protocol from server */
+					/* Parent sending client information with pipe */
 					snprintf(buffer, BUFFER_SIZE, "%lu", (unsigned long)getpid());
+
+					close(pipeDescriptionForServerClient[0]);
 					write(pipeDescriptionForServerClient[1], buffer, BUFFER_SIZE);
 					close(pipeDescriptionForServerClient[1]);
 
-
-
 					/* Open secure connection */
 					fdNewSecureConnection = open(nameNewSecureConnection, O_RDWR);	
-
+printf("---%s\n", nameNewSecureConnection);
 					/*
 					*	Client kayıt etmesi için kendi pid mizi yolluyoruz
 					*/
-					snprintf(buffer, BUFFER_SIZE, "%lu", (unsigned long)getpid());
 					write(fdNewSecureConnection, buffer, BUFFER_SIZE);
-
 
 					while(1)
 					{	
@@ -286,7 +287,7 @@ int main(int argc, char const *argv[])
 
 						write(fdNewSecureConnection, buffer, BUFFER_SIZE);
 
-						sleep(1);
+						sleep(2);
 					}
 
 					close(fdNewSecureConnection);
@@ -296,12 +297,14 @@ int main(int argc, char const *argv[])
 				}
 				if (childPid > 0)
 				{
+
 					/* Parent sending client information with pipe */
+					close(pipeDescriptionForServerClient[1]);
 					read(pipeDescriptionForServerClient[0], buffer, BUFFER_SIZE);
 					close(pipeDescriptionForServerClient[0]);
 
 					strcpy(childName, buffer);
-printf("%s\n", childName);
+
 					addMember(clientName, childName, emptySlot);
 					activeClients++;
 
@@ -362,17 +365,14 @@ void signalHandlerServer(int sign)
 
 	if (sign == SIGHUP || sign == SIGINT || sign == SIGKILL || sign == SIGQUIT)
 	{
-
-		for (int i = 0; i < 255; ++i)
-			kill(atoi(childProcessesTable[i].childPid), SIGUSR1);
-
-
 		exit(EXIT_SUCCESS);
 	}
 
 	if (sign == SIGUSR1)
-	{
-		pid_t childPid = wait(NULL);
+	{	
+		printf("Parent SIGUSR1 yakaladı\n");
+
+		pid_t childPid = waitpid(-1, NULL, 0);
 		
 		snprintf(childName, 10, "%lu", (unsigned long)childPid);
 
@@ -397,6 +397,7 @@ void signalHandlerServer(int sign)
 		{
 			printf("%d. Child  %s\n", i+1, childProcessesTable[i].childPid);
 		}
+
 	}
 
 
@@ -404,23 +405,37 @@ void signalHandlerServer(int sign)
 
 void signalHandlerChild(int sign)
 {
+	char childName[10];
+
 	if (sign == SIGHUP || sign == SIGINT || sign == SIGKILL || sign == SIGQUIT)
-		for (int i = 0; i < 255; ++i)
+	{
+		for (int i = 0; i < maxClients; ++i)
 			kill(atoi(activeClientTable[i].pid), SIGUSR2);
+
+		exit(EXIT_SUCCESS);
+	}
+
 
 	if (sign == SIGUSR1)
 	{
-		signal(SIGUSR2, SIG_IGN);
+		printf("Parent mesaj yolladı\n");
+		snprintf(childName, 10, "%lu", (unsigned long)getpid());
+
+		for (int i = 0; i < maxClients; ++i)
+		{
+			if (strcmp(activeClientTable[i].childPid, childName) == 0)
+			{
+				kill(atoi(activeClientTable[i].pid), SIGUSR2);
+			}
+		}
 
 		exit(EXIT_SUCCESS);
 	}
 
 	if (sign == SIGUSR2)
 	{
-		signal(SIGUSR1, SIG_IGN);
-
+		printf("Child SIGUSR2 yakaladı\n");
 		kill(getppid(), SIGUSR1);
-
 		exit(EXIT_SUCCESS);
 	}
 }
