@@ -1,3 +1,27 @@
+/***
+ *                                                                                                                           
+ *      ,ad8888ba,                                           8b        d8  88  88           88888888ba,    88  888888888888  
+ *     d8"'    `"8b                                           Y8,    ,8P   88  88           88      `"8b   88           ,88  
+ *    d8'        `8b                                           Y8,  ,8P    88  88           88        `8b  88         ,88"   
+ *    88          88  888888888  ,adPPYYba,  8b,dPPYba,         "8aa8"     88  88           88         88  88       ,88"     
+ *    88          88       a8P"  ""     `Y8  88P'   `"8a         `88'      88  88           88         88  88     ,88"       
+ *    Y8,        ,8P    ,d8P'    ,adPPPPP88  88       88          88       88  88           88         8P  88   ,88"         
+ *     Y8a.    .a8P   ,d8"       88,    ,88  88       88          88       88  88           88      .a8P   88  88"           
+ *      `"Y8888Y"'    888888888  `"8bbdP"Y8  88       88          88       88  88888888888  88888888Y"'    88  888888888888  
+ *                                                                                                                           
+ *                                                                                                                           
+ *                                                                                                                           
+ *        88  8888888888    88     ,a8888a,             ,d8            ,d8       ,a8888a,      ad88888ba    ad888888b,       
+ *      ,d88  88          ,d88   ,8P"'  `"Y8,         ,d888          ,d888     ,8P"'  `"Y8,   d8"     "8b  d8"     "88       
+ *    888888  88  ____  888888  ,8P        Y8,      ,d8" 88        ,d8" 88    ,8P        Y8,  Y8a     a8P          a8P       
+ *        88  88a8PPPP8b,   88  88          88    ,d8"   88      ,d8"   88    88          88   "Y8aaa8P"        ,d8P"        
+ *        88  PP"     `8b   88  88          88  ,d8"     88    ,d8"     88    88          88   ,d8"""8b,      a8P"           
+ *        88           d8   88  `8b        d8'  8888888888888  8888888888888  `8b        d8'  d8"     "8b   a8P'             
+ *        88  Y8a     a8P   88   `8ba,  ,ad8'            88             88     `8ba,  ,ad8'   Y8a     a8P  d8"               
+ *        88   "Y88888P"    88     "Y8888P"              88             88       "Y8888P"      "Y88888P"   88888888888       
+ *                                                                                                                           
+ *                                                                                                                           
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -26,8 +50,6 @@ void writeLogFile(const char *);
 
 int main(int argc, char *argv[])
 {
-	int childCounter = 0;
-
 	/* Buffer */
 	char buffer[BUFFER_SIZE];
 	char fifoCurrentName[FILE_NAME_SIZE];
@@ -43,13 +65,15 @@ int main(int argc, char *argv[])
 
 	fileCheck(argv[1], argv[2]);
 
-	while(0 < wait(NULL))
-		printf("%d child\n", childCounter++);
+	while(0 < wait(NULL));
 
 	/* If there are any data in process's fifo */
 	if (0 < (fifoCurrentDescription = open(fifoCurrentName, O_RDONLY)))
 		if (0 < read(fifoCurrentDescription, buffer, BUFFER_SIZE))
 			writeLogFile(buffer);
+
+	close(fifoCurrentDescription);
+	unlink(fifoCurrentName);
 
 	return 0;
 } /* end main function */
@@ -84,6 +108,10 @@ void fileCheck(char *currentPath, char *searchText)
 	char fifoUpperName[FILE_NAME_SIZE];
 	char fifoCurrentName[FILE_NAME_SIZE];
 
+	/* Fifo variables */
+	int fifoCurrentDescription;
+	int fifoUpperDescription;
+
 	/* Try to open folder */
 	if ((dir = opendir(currentPath)) == NULL)
 	{
@@ -99,72 +127,105 @@ void fileCheck(char *currentPath, char *searchText)
 			if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0)
 				continue;
 
-			/*
-				Is it folder?
-			*/
-			if (ent->d_type == DT_DIR) /* Is this folder? */
+			/* Create pipe and child */
+			sprintf(fifoCurrentName, "%d", (int)getpid());
+			if (mkfifo(fifoCurrentName, 0666) < 0 && (errno != EEXIST))
 			{
-				/* Create pipe and child */
-				sprintf(fifoCurrentName, "%d", (int)getpid());
-				if ((mkfifo(fifoCurrentName, 0666) < 0 && (errno != EEXIST)) || (childPid = fork()) < 0)
-				{
-					perror("Error 222");
-					exit(EXIT_FAILURE);
-				}
-
-				/* Create new path */
-				char newPath[FILE_NAME_SIZE];
-				strcpy(newPath, currentPath);
-				strcat(newPath, "/");
-				strcat(newPath, ent->d_name);
-
-				/* Filecheck new path */
-				fileCheck(newPath, searchText);
-
-				unlink(fifoCurrentName);
-
-				exit(EXIT_SUCCESS);
-
-
+				perror("Error 222");
+				exit(EXIT_FAILURE);
 			}
-
-			/*
-				File?
-			*/
-			else if (ent->d_type == DT_REG)
+			else
 			{
 				if (pipe(pipeDescription) < 0 || (childPid = fork()) < 0)
 				{
 					perror("Error 378");
 					exit(EXIT_FAILURE);
 				}
-
-				/*
-				*	Parent
-				*/
-				if (childPid)
-				{
-					close(pipeDescription[1]);
-					read(pipeDescription[0], buffer, BUFFER_SIZE);
-					close(pipeDescription[0]);
-				}
-				/*
-				*	Child
-				*/
 				else
 				{
-					close(pipeDescription[0]);
+					/*
+					 * 	Parent process
+					 */
+					if (childPid)
+					{
+						sprintf(fifoCurrentName, "%d", (int)getpid());
+						sprintf(fifoUpperName, "%d", (int)getppid());
 
-					/* Searching new path */
-					searchInFile(currentPath, ent->d_name, searchText, pipeDescription[1]);
+						close(pipeDescription[1]);
 
-					close(pipeDescription[1]);
+						/* Control for is process main or not? */
+						if (0 < (fifoUpperDescription = open(fifoUpperName, O_WRONLY | O_NONBLOCK)))
+						{
+							printf("child pipe\n");
+							/* If there are any data in pipe */
+							if (0 < read(pipeDescription[0], buffer, BUFFER_SIZE))
+								write(fifoUpperDescription, buffer, BUFFER_SIZE);
 
-					exit(EXIT_SUCCESS);
-				}
+							printf("child fifo\n");
+							if (0 < (fifoCurrentDescription = open(fifoCurrentName, O_RDONLY)))
+							{
+								printf("cuurent fifo\n");
+								if (0 < read(fifoCurrentDescription, buffer, BUFFER_SIZE))
+									write(fifoUpperDescription, buffer, BUFFER_SIZE);
+							}
+
+						}
+						else
+						{
+							/* If there are any data in pipe */
+							if (0 < read(pipeDescription[0], buffer, BUFFER_SIZE))
+								writeLogFile(buffer);
+
+							unlink(fifoCurrentName);
 
 
-			} /* end if else (dirent type) */
+						} /* end if else (open fifo) */
+
+						/* Close */
+						close(pipeDescription[0]);
+
+						close(fifoCurrentDescription);
+						close(fifoUpperDescription);
+					}
+					else  /* Child process */
+					{
+						/* Control for folder */
+						if (ent->d_type == DT_DIR) /* Is this folder? */
+						{
+							/* Create new path */
+							char newPath[FILE_NAME_SIZE];
+							strcpy(newPath, currentPath);
+							strcat(newPath, "/");
+							strcat(newPath, ent->d_name);
+
+							/* Filecheck new path */
+							fileCheck(newPath, searchText);
+
+							exit(EXIT_SUCCESS);
+						}
+						else if (ent->d_type == DT_REG) /* Is this file */
+						{
+							/* Child name for pipe */
+							char childName[BUFFER_SIZE];
+							snprintf(childName, sizeof(childName), "%s - Childpid:%d", ent->d_name, (int)getpid());
+
+							/* Pipe */
+							close(pipeDescription[0]);
+
+							/* Searching new path */
+							searchInFile(currentPath, ent->d_name, searchText, pipeDescription[1]);
+
+							close(pipeDescription[1]);
+
+							exit(EXIT_SUCCESS);
+
+						} /* end if else (dirent type) */
+
+					} /* end else (chil pid control)*/
+
+				} /* end if else (pipe) */
+
+			} /* end if else (fifo) */
 
 		} /* end while */
 
