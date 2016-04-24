@@ -40,6 +40,12 @@
 /* SIZES */
 #define FILE_NAME_SIZE 256
 
+ /*
+ *	Function prototypes
+ */
+
+void openingStyle2(void);
+
 void fileCheck(char *, char *);
 
 void *searchInFile(void *);
@@ -47,6 +53,7 @@ void *searchInFile(void *);
 void writePipe(const int, const int);
 
 void writeLogFile(const char *);
+
 
 struct _searchParameters
 {
