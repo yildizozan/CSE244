@@ -1,0 +1,43 @@
+/***
+ *                                                                                                                           
+ *      ,ad8888ba,                                           8b        d8  88  88           88888888ba,    88  888888888888  
+ *     d8"'    `"8b                                           Y8,    ,8P   88  88           88      `"8b   88           ,88  
+ *    d8'        `8b                                           Y8,  ,8P    88  88           88        `8b  88         ,88"   
+ *    88          88  888888888  ,adPPYYba,  8b,dPPYba,         "8aa8"     88  88           88         88  88       ,88"     
+ *    88          88       a8P"  ""     `Y8  88P'   `"8a         `88'      88  88           88         88  88     ,88"       
+ *    Y8,        ,8P    ,d8P'    ,adPPPPP88  88       88          88       88  88           88         8P  88   ,88"         
+ *     Y8a.    .a8P   ,d8"       88,    ,88  88       88          88       88  88           88      .a8P   88  88"           
+ *      `"Y8888Y"'    888888888  `"8bbdP"Y8  88       88          88       88  88888888888  88888888Y"'    88  888888888888  
+ *                                                                                                                           
+ *                                                                                                                           
+ *                                                                                                                           
+ *        88  8888888888    88     ,a8888a,             ,d8            ,d8       ,a8888a,      ad88888ba    ad888888b,       
+ *      ,d88  88          ,d88   ,8P"'  `"Y8,         ,d888          ,d888     ,8P"'  `"Y8,   d8"     "8b  d8"     "88       
+ *    888888  88  ____  888888  ,8P        Y8,      ,d8" 88        ,d8" 88    ,8P        Y8,  Y8a     a8P          a8P       
+ *        88  88a8PPPP8b,   88  88          88    ,d8"   88      ,d8"   88    88          88   "Y8aaa8P"        ,d8P"        
+ *        88  PP"     `8b   88  88          88  ,d8"     88    ,d8"     88    88          88   ,d8"""8b,      a8P"           
+ *        88           d8   88  `8b        d8'  8888888888888  8888888888888  `8b        d8'  d8"     "8b   a8P'             
+ *        88  Y8a     a8P   88   `8ba,  ,ad8'            88             88     `8ba,  ,ad8'   Y8a     a8P  d8"               
+ *        88   "Y88888P"    88     "Y8888P"              88             88       "Y8888P"      "Y88888P"   88888888888       
+ *                                                                                                                           
+ *                                                                                                                           
+ */
+
+Ön Bilgi:
+
+	Ödevi bitmeden yolluyorum.
+	Çok aksilik yaşadım özellikle fifo için.
+	Çok hassaslar alakasız bir şey yapsamda senkronizasyon bozuluyor
+	Eksik olanlar timer ve integral alma, onları eklerken zamanım yetmedi.
+
+Usage:
+
+	Kısım 1:
+	Server açıldıktan sonra "Connection" adında fifo oluşturur.
+	İletişim buradan sağlanacaktır.
+	Klasördeki dosyalar (f1, f2 .. f6) ilgili değişkenlere yazılır.
+	Request beklemeye başlar.
+
+	Kısım 2:
+	EXCP adında bir structure "pid" ve "status" değerleri doldurulur gönderilir.
+	Server gelen paketin dolmuş kısımlarını yeni bir struct da kopyalar sorun yoksa "status" değerini 2 yapar geri gönderir.
