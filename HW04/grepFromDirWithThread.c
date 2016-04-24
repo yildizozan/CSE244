@@ -1,3 +1,27 @@
+/***
+ *                                                                                                                           
+ *      ,ad8888ba,                                           8b        d8  88  88           88888888ba,    88  888888888888  
+ *     d8"'    `"8b                                           Y8,    ,8P   88  88           88      `"8b   88           ,88  
+ *    d8'        `8b                                           Y8,  ,8P    88  88           88        `8b  88         ,88"   
+ *    88          88  888888888  ,adPPYYba,  8b,dPPYba,         "8aa8"     88  88           88         88  88       ,88"     
+ *    88          88       a8P"  ""     `Y8  88P'   `"8a         `88'      88  88           88         88  88     ,88"       
+ *    Y8,        ,8P    ,d8P'    ,adPPPPP88  88       88          88       88  88           88         8P  88   ,88"         
+ *     Y8a.    .a8P   ,d8"       88,    ,88  88       88          88       88  88           88      .a8P   88  88"           
+ *      `"Y8888Y"'    888888888  `"8bbdP"Y8  88       88          88       88  88888888888  88888888Y"'    88  888888888888  
+ *                                                                                                                           
+ *                                                                                                                           
+ *                                                                                                                           
+ *        88  8888888888    88     ,a8888a,             ,d8            ,d8       ,a8888a,      ad88888ba    ad888888b,       
+ *      ,d88  88          ,d88   ,8P"'  `"Y8,         ,d888          ,d888     ,8P"'  `"Y8,   d8"     "8b  d8"     "88       
+ *    888888  88  ____  888888  ,8P        Y8,      ,d8" 88        ,d8" 88    ,8P        Y8,  Y8a     a8P          a8P       
+ *        88  88a8PPPP8b,   88  88          88    ,d8"   88      ,d8"   88    88          88   "Y8aaa8P"        ,d8P"        
+ *        88  PP"     `8b   88  88          88  ,d8"     88    ,d8"     88    88          88   ,d8"""8b,      a8P"           
+ *        88           d8   88  `8b        d8'  8888888888888  8888888888888  `8b        d8'  d8"     "8b   a8P'             
+ *        88  Y8a     a8P   88   `8ba,  ,ad8'            88             88     `8ba,  ,ad8'   Y8a     a8P  d8"               
+ *        88   "Y88888P"    88     "Y8888P"              88             88       "Y8888P"      "Y88888P"   88888888888       
+ *                                                                                                                           
+ *                                                                                                                           
+ */
 #include <stdio.h>
 #include <stdlib.h>
 #include <dirent.h>
@@ -47,6 +71,8 @@ int main(int argc, char *argv[])
 		printf("Using: ./grD [directory] text\n");
 		return 1;
 	}
+
+	openingStyle2();
 
 
 	fileCheck(argv[1], argv[2]);
@@ -349,7 +375,7 @@ void *searchInFile(void *parametersSearchInfile)
 		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
 		// Print screen
-		printf("%s -> %d times found.\n", fileName, totalWord);
+		printf("%s \t %d times found.\n", fileName, totalWord);
 
 		// Close tempfile
 		close(tempFileDescriptor);
@@ -423,18 +449,56 @@ void writePipe(const int tempFileDescription, const int pipeFileHandle)
 
 /***************************************************
 
-	FUNCTION:	writeFifo
+	FUNCTION:	Opening
 
-	SUPPOSE:	Copy text from pipe to fifo
+	SUPPOSE:	Program opening style
 
 	COMMENT:
 
-		Olcak olacak olacak o kadar..
+		
 
 ****************************************************/
-/*
-void writeFifo(const char *fifoDescription, const int a)
-{
-
+void openingStyle2(void)
+{                                                                                
+printf("   ggggggggg   gggggrrrrr   rrrrrrrrr       eeeeeeeeeeee    ppppp   ppppppppp  \n");
+usleep(200000);
+printf("  g:::::::::ggg::::gr::::rrr:::::::::r    ee::::::::::::ee  p::::ppp:::::::::p  \n");
+usleep(200000);
+printf(" g:::::::::::::::::gr:::::::::::::::::r  e::::::eeeee:::::eep:::::::::::::::::p \n");
+usleep(200000);
+printf("g::::::ggggg::::::ggrr::::::rrrrr::::::re::::::e     e:::::epp::::::ppppp::::::p\n");
+usleep(200000);
+printf("g:::::g     g:::::g  r:::::r     r:::::re:::::::eeeee::::::e p:::::p     p:::::p\n");
+usleep(200000);
+printf("g:::::g     g:::::g  r:::::r     rrrrrrre:::::::::::::::::e  p:::::p     p:::::p\n");
+usleep(100000);
+printf("g:::::g     g:::::g  r:::::r            e::::::eeeeeeeeeee   p:::::p     p:::::p\n");
+usleep(100000);
+printf("g::::::g    g:::::g  r:::::r            e:::::::e            p:::::p    p::::::p\n");
+usleep(100000);
+printf("g:::::::ggggg:::::g  r:::::r            e::::::::e           p:::::ppppp:::::::p\n");
+usleep(100000);
+printf(" g::::::::::::::::g  r:::::r             e::::::::eeeeeeee   p::::::::::::::::p \n");
+usleep(200000);
+printf("  gg::::::::::::::g  r:::::r              ee:::::::::::::e   p::::::::::::::pp  \n");
+usleep(200000);
+printf("    gggggggg::::::g  rrrrrrr                eeeeeeeeeeeeee   p::::::pppppppp    \n");
+usleep(300000);
+printf("            g:::::g                                          p:::::p            \n");
+usleep(300000);
+printf("gggggg      g:::::g                                          p:::::p            \n");
+usleep(300000);
+printf("g:::::gg   gg:::::g                                         p:::::::p           \n");
+usleep(300000);
+printf(" g::::::ggg:::::::g                                         p:::::::p           \n");
+usleep(300000);
+printf("  gg:::::::::::::g                                          p:::::::p           \n");
+usleep(400000);
+printf("    ggg::::::ggg                                            ppppppppp           \n");
+usleep(400000);
+printf("       gggggg                                                                   \n");
+printf("\n");
+printf(" #HW04                                                   Created by Ozan YILDIZ \n");
+usleep(500000);
+printf("\n");
 }
-*/
