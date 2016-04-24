@@ -31,21 +31,38 @@
 #include <fcntl.h>
 #include <string.h>
 #include <errno.h>
+#include <pthread.h>
 
 /* BUFFERS */
 #define BUFFER_STREAM	1
-#define BUFFER_SIZE		2048
+#define BUFFER_SIZE		4096
 
 /* SIZES */
 #define FILE_NAME_SIZE 256
 
+ /*
+ *	Function prototypes
+ */
+
+void openingStyle2(void);
+
 void fileCheck(char *, char *);
 
-int searchInFile(const char *, const char *, const char *, const int);
+void *searchInFile(void *);
 
 void writePipe(const int, const int);
 
 void writeLogFile(const char *);
+
+
+struct _searchParameters
+{
+	char *filePath;
+	char *fileName;
+	char *searchingWord;
+	int pipeDescription;
+
+};
 
 
 int main(int argc, char *argv[])
@@ -61,6 +78,8 @@ int main(int argc, char *argv[])
 		printf("Using: ./grD [directory] text\n");
 		return 1;
 	}
+
+	openingStyle2();
 
 
 	fileCheck(argv[1], argv[2]);
@@ -93,6 +112,10 @@ void fileCheck(char *currentPath, char *searchText)
 {
 	/* Buffer */
 	char buffer[BUFFER_SIZE];
+
+	/* Create thread and struct initialize*/
+	struct _searchParameters parametersSearchInfile;
+	pthread_t currentThread;
 
 	/* Folder variables */
 	DIR *dir;
@@ -208,12 +231,18 @@ void fileCheck(char *currentPath, char *searchText)
 							/* Child name for pipe */
 							char childName[BUFFER_SIZE];
 							snprintf(childName, sizeof(childName), "%s - Childpid:%d", ent->d_name, (int)getpid());
-
 							/* Pipe */
 							close(pipeDescription[0]);
 
-							/* Searching new path */
-							searchInFile(currentPath, ent->d_name, searchText, pipeDescription[1]);
+
+							parametersSearchInfile.filePath = currentPath;
+							parametersSearchInfile.fileName = ent->d_name;
+							parametersSearchInfile.searchingWord = searchText;
+							parametersSearchInfile.pipeDescription = pipeDescription[1];
+
+							pthread_create(&currentThread, NULL, searchInFile, &parametersSearchInfile);
+							pthread_join(currentThread, NULL);
+							pthread_exit(NULL);
 
 							close(pipeDescription[1]);
 
@@ -246,8 +275,22 @@ void fileCheck(char *currentPath, char *searchText)
 		Olcak olacak olacak o kadar..
 
 ****************************************************/
-int searchInFile(const char *filePath, const char *fileName, const char *searchingWord, const int pipeDescription)
+void *searchInFile(void *parametersSearchInfile)
 {
+	/* Parameters */
+	char *filePath;
+	char *fileName;
+	char *searchingWord;
+	int pipeDescription;
+
+	/* Thread import parameter data */
+	struct _searchParameters * parameters = (struct _searchParameters *)parametersSearchInfile;
+
+	filePath = parameters->filePath;
+	fileName = parameters->fileName;
+	searchingWord = parameters->searchingWord;
+	pipeDescription = parameters->pipeDescription;
+
 	/* Variables */
 	int currentLineNumber = 1,		/* currentLineNumber is line counter */
 		curentColumnNumber = 1,		/* curentColumnNumber is column counter */
@@ -286,7 +329,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 	if (openFileForReadingHandle == -1)
 	{
 		printf("Error for opening file.\nExiting..\n");
-		return 1;
+		exit(EXIT_FAILURE);
 	}
 	else
 	{
@@ -339,7 +382,7 @@ int searchInFile(const char *filePath, const char *fileName, const char *searchi
 		write(tempFileDescriptor, tempFileText, strlen(tempFileText));
 
 		// Print screen
-		printf("%s -> %d\n", fileName, totalWord);
+		printf("%s \t %d times found.\n", fileName, totalWord);
 
 		// Close tempfile
 		close(tempFileDescriptor);
@@ -413,18 +456,56 @@ void writePipe(const int tempFileDescription, const int pipeFileHandle)
 
 /***************************************************
 
-	FUNCTION:	writeFifo
+	FUNCTION:	Opening
 
-	SUPPOSE:	Copy text from pipe to fifo
+	SUPPOSE:	Program opening style
 
 	COMMENT:
 
-		Olcak olacak olacak o kadar..
+		
 
 ****************************************************/
-/*
-void writeFifo(const char *fifoDescription, const int a)
-{
-
+void openingStyle2(void)
+{                                                                                
+printf("   ggggggggg   gggggrrrrr   rrrrrrrrr       eeeeeeeeeeee    ppppp   ppppppppp  \n");
+usleep(200000);
+printf("  g:::::::::ggg::::gr::::rrr:::::::::r    ee::::::::::::ee  p::::ppp:::::::::p  \n");
+usleep(200000);
+printf(" g:::::::::::::::::gr:::::::::::::::::r  e::::::eeeee:::::eep:::::::::::::::::p \n");
+usleep(200000);
+printf("g::::::ggggg::::::ggrr::::::rrrrr::::::re::::::e     e:::::epp::::::ppppp::::::p\n");
+usleep(200000);
+printf("g:::::g     g:::::g  r:::::r     r:::::re:::::::eeeee::::::e p:::::p     p:::::p\n");
+usleep(200000);
+printf("g:::::g     g:::::g  r:::::r     rrrrrrre:::::::::::::::::e  p:::::p     p:::::p\n");
+usleep(100000);
+printf("g:::::g     g:::::g  r:::::r            e::::::eeeeeeeeeee   p:::::p     p:::::p\n");
+usleep(100000);
+printf("g::::::g    g:::::g  r:::::r            e:::::::e            p:::::p    p::::::p\n");
+usleep(100000);
+printf("g:::::::ggggg:::::g  r:::::r            e::::::::e           p:::::ppppp:::::::p\n");
+usleep(100000);
+printf(" g::::::::::::::::g  r:::::r             e::::::::eeeeeeee   p::::::::::::::::p \n");
+usleep(200000);
+printf("  gg::::::::::::::g  r:::::r              ee:::::::::::::e   p::::::::::::::pp  \n");
+usleep(200000);
+printf("    gggggggg::::::g  rrrrrrr                eeeeeeeeeeeeee   p::::::pppppppp    \n");
+usleep(300000);
+printf("            g:::::g                                          p:::::p            \n");
+usleep(300000);
+printf("gggggg      g:::::g                                          p:::::p            \n");
+usleep(300000);
+printf("g:::::gg   gg:::::g                                         p:::::::p           \n");
+usleep(300000);
+printf(" g::::::ggg:::::::g                                         p:::::::p           \n");
+usleep(300000);
+printf("  gg:::::::::::::g                                          p:::::::p           \n");
+usleep(400000);
+printf("    ggg::::::ggg                                            ppppppppp           \n");
+usleep(400000);
+printf("       gggggg                                                                   \n");
+printf("\n");
+printf(" #HW04                                                   Created by Ozan YILDIZ \n");
+usleep(500000);
+printf("\n");
 }
-*/
