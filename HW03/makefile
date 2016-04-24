@@ -1,3 +1,4 @@
 all:
-	gcc grepFromDir.c -o grepFromDir -Wall -pedantic -ansi
-	./grepFromDir 'z/ook' ozan
+	gcc -pthread grepFromDir.c -o grepFromDir -Wall -pedantic -pthread
+	#valgrind --tool=memcheck ./grepFromDir2
+	./grepFromDir 'z/xxx' massa
