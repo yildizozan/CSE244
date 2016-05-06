@@ -8,6 +8,8 @@
 #include <string.h>
 #include <errno.h>
 #include <pthread.h>
+#include <time.h>
+#include <semaphore.h>
 
 /* BUFFERS */
 #define BUFFER_STREAM	1
@@ -22,7 +24,7 @@
  */
 void openingStyle2(void);
 
-void fileCheck(char *, char *);
+void fileCheck(char *, char *, int);
 
 void *searchInFile(void *);
 
@@ -30,19 +32,37 @@ void writePipe(const int, const int);
 
 void writeLogFile(const char *);
 
+sem_t mutex;
 
 struct _searchParameters
 {
 	char *filePath;
 	char *fileName;
 	char *searchingWord;
+	int fifoDescription;
 
 };
 
 
 int main(int argc, char *argv[])
 {
-	int countChild;
+	/* Buffer variables*/
+	char buffer[BUFFER_SIZE];
+	char fifoName[FILE_NAME_SIZE];
+	int fifoDescription;
+
+	/* Create fifo */
+	snprintf(fifoName, FILE_NAME_SIZE, "GeneralConn");
+	if (mkfifo(fifoName, 0666) < 0 && (errno != EEXIST))
+	{
+		perror("Error 222");
+		exit(EXIT_FAILURE);
+	}
+	if ((fifoDescription = open(fifoName, O_RDWR)) < 0)
+	{
+		perror("Error 223");
+		exit(EXIT_FAILURE);
+	}
 
 	/* Usage */
 	if (argc != 3)
@@ -51,16 +71,23 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 
+	openingStyle2();
+	
+	fileCheck(argv[1], argv[2], fifoDescription);
 
-	fileCheck(argv[1], argv[2]);
-
-	while(0 < wait(NULL))
+	/* If there are any data in process's fifo */
+	while(0 < waitpid(-1, NULL, 0))
 	{
-		countChild++;
+
+
 		exit(EXIT_SUCCESS);
 	}
 
-	printf("%d\n", countChild);
+	while (0 < read(fifoDescription, buffer, BUFFER_SIZE))
+		writeLogFile(buffer);
+
+	close(fifoDescription);
+	unlink(fifoName);
 
 	return 0;
 } /* end main function */
@@ -76,11 +103,8 @@ int main(int argc, char *argv[])
 		Olcak olacak olacak o kadar..
 
 ****************************************************/
-void fileCheck(char *currentPath, char *searchText)
+void fileCheck(char *currentPath, char *searchText, int fifoDescription)
 {
-	/* Buffer */
-	char buffer[BUFFER_SIZE];
-
 	/* Create thread and struct initialize*/
 	struct _searchParameters parametersSearchInfile;
 	pthread_t thread[THREAD_SIZE];
@@ -126,7 +150,7 @@ void fileCheck(char *currentPath, char *searchText)
 					strcat(newPath, ent->d_name);
 
 					/* Filecheck new path */
-					fileCheck(newPath, searchText);
+					fileCheck(newPath, searchText, fifoDescription);
 				}
 
 			} /* end if DT_DIR */
@@ -137,10 +161,16 @@ void fileCheck(char *currentPath, char *searchText)
 				parametersSearchInfile.filePath = currentPath;
 				parametersSearchInfile.fileName = ent->d_name;
 				parametersSearchInfile.searchingWord = searchText;
+				parametersSearchInfile.fifoDescription = fifoDescription;
 
 				currentThread++;
+
+				sem_init(&mutex, 0, 1);
+
 				pthread_create(&thread[currentThread], NULL, searchInFile, &parametersSearchInfile);
 				pthread_join(thread[currentThread], NULL);
+
+				sem_destroy(&mutex);
 
 			} /* end if else (dirent type) */
 
@@ -165,10 +195,13 @@ void fileCheck(char *currentPath, char *searchText)
 ****************************************************/
 void *searchInFile(void *parametersSearchInfile)
 {
+	sem_wait(&mutex);
+
 	/* Parameters */
 	char filePath[FILE_NAME_SIZE];
 	char fileName[FILE_NAME_SIZE];
 	char searchingWord[FILE_NAME_SIZE];
+	int fifoDescription;
 
 	/* Thread import parameter data */
 	struct _searchParameters * parameters = (struct _searchParameters *)parametersSearchInfile;
@@ -176,6 +209,7 @@ void *searchInFile(void *parametersSearchInfile)
 	strcpy(filePath, parameters->filePath);
 	strcpy(fileName, parameters->fileName);
 	strcpy(searchingWord, parameters->searchingWord);
+	fifoDescription = parameters->fifoDescription;
 
 	/* Variables */
 	int currentLineNumber = 1,		/* currentLineNumber is line counter */
@@ -184,6 +218,7 @@ void *searchInFile(void *parametersSearchInfile)
 		totalWord = 0;				/* totalWord find searching text in the file */
 
 	char currentChar;
+	char buffer[BUFFER_SIZE];
 
 	/* Temp file variables */
 	char tempFileName[FILE_NAME_SIZE];
@@ -195,14 +230,14 @@ void *searchInFile(void *parametersSearchInfile)
 	strcat(newPath, fileName);
 
 
-		/*
-		*	Openin temp file for result
-		*/
-		snprintf(tempFileName, sizeof(tempFileName), "%ld.txt", (long)getpid());
-		FILE *tempFileDescriptor = fopen(tempFileName, "a+");
+	/*
+	*	Openin temp file for result
+	*/
+	snprintf(tempFileName, sizeof(tempFileName), "%ld.txt", (long)getpid());
+	FILE *tempFileDescriptor = fopen(tempFileName, "a+");
 
-		/* Write header for result temp file */
-		fprintf(tempFileDescriptor, "Path: %s\nFile: %s -> %s\n", filePath, fileName, searchingWord);
+	/* Write header for result temp file */
+	fprintf(tempFileDescriptor, "Path: %s\nFile: %s -> %s\n", filePath, fileName, searchingWord);
 
 	/* Opening file for searching (READ ONLY MODE) */
 	int openFileForReadingHandle = open(newPath, O_RDONLY);
@@ -274,16 +309,27 @@ void *searchInFile(void *parametersSearchInfile)
 		/* Close reading file */
 		close(openFileForReadingHandle);
 
+		// If find to ant word, all results write pipe or unlink file
+		if (0 < totalWord)
+		{
+			int tempDescription;
+			if (0 < (tempDescription = open(tempFileName, O_RDONLY)))
+				if (0 < read(tempDescription, buffer, BUFFER_SIZE))
+					write(fifoDescription, buffer, BUFFER_SIZE);
+		}
+
 	} /* end if else */
 
 	/* Delete temp file */
-	/*
-	unlink(tempFileDescriptor);
-	*/
+	unlink(tempFileName);
+
+
+	sem_post(&mutex);
 
 	return 0;
 
 } /* end function searchInFile */
+
 
 /***************************************************
 
@@ -301,28 +347,6 @@ void writeLogFile(const char *results)
 	int logFileHandle = open("gfD.log", O_CREAT | O_WRONLY | O_APPEND);
 	write(logFileHandle, results, strlen(results));
 	close(logFileHandle);
-
-	return;
-}
-
-/***************************************************
-
-	FUNCTION:	writePipe
-
-	SUPPOSE:	Copy from temp file to pipe
-
-	COMMENT:
-
-		Olcak olacak olacak o kadar..
-
-****************************************************/
-void writePipe(const int tempFileDescription, const int pipeFileHandle)
-{
-	/* Variable */
-	char tempText[BUFFER_SIZE];
-
-	read(tempFileDescription, tempText, BUFFER_SIZE);
-	write(pipeFileHandle, tempText, BUFFER_SIZE);
 
 	return;
 }
