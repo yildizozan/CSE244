@@ -7,6 +7,8 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 
+#define BUFFER_SIZE 256
+
 void communication(int);
 
 int main(int argc, char const *argv[])
@@ -23,7 +25,7 @@ int main(int argc, char const *argv[])
     int socketAcceptFD;
     struct sockaddr_in serverAddr;
     struct sockaddr_in clientAddr;
-    socklen_t clientAddrLengt;
+    socklen_t clientAddrLen;
 
     if (argc != 2)
     {
@@ -57,12 +59,12 @@ int main(int argc, char const *argv[])
     /* Starting to liston for the clientsi now! */
     listen(socketFD, 1);
 
-    clientAddrLengt = sizeof(clientAddr);
+    clientAddrLen = sizeof(clientAddr);
 
     while(quit)
     {
         /* Socket waiting */
-        socketAcceptFD = accept(socketFD, (struct sockaddr *) &clientAddr, &clientAddrLengt);
+        socketAcceptFD = accept(socketFD, (struct sockaddr *) &clientAddr, &clientAddrLen);
         if (socketAcceptFD < 0)
         {
             perror("Error 332");
@@ -73,13 +75,13 @@ int main(int argc, char const *argv[])
         if (childPid < 0)
         {
             perror("Error 334");
-            exit(1);
+            exit(EXIT_FAILURE);
         }
 
         /* This is the client process */
         if (childPid == 0)
         {
-            close(socketFD);
+            close(socketFD); /* WHY */
             communication(socketAcceptFD);
             exit(EXIT_SUCCESS);
         }
@@ -97,20 +99,26 @@ int main(int argc, char const *argv[])
 void communication(int newSocket)
 {
     int n;
-    char buffer[256];
-    bzero(buffer,256);
+    int quit = 1;
+    char buffer[BUFFER_SIZE];
 
-    n = read(newSocket,buffer,255);
-    if (n < 0) {
-        perror("ERROR reading from socket");
-        exit(1);
+    while(quit)
+    {
+        bzero(buffer, BUFFER_SIZE);
+
+        n = read(newSocket, buffer, BUFFER_SIZE - 1);
+        if (n < 0) {
+            perror("ERROR reading from socket");
+            exit(EXIT_FAILURE);
+        }
+
+        printf("Here is the message: %s\n", buffer);
+
+        n = write(newSocket,"I got your message", 18);
+        if (n < 0) {
+            perror("ERROR writing to socket");
+            exit(EXIT_FAILURE);
+        }
     }
 
-    printf("Here is the message: %s\n",buffer);
-
-    n = write(newSocket,"I got your message",18);
-    if (n < 0) {
-        perror("ERROR writing to socket");
-        exit(1);
-    }
 }

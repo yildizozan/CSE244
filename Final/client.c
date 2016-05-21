@@ -20,12 +20,12 @@ int main(int argc, char const *argv[])
     char buffer[BUFFER_SIZE];
 
     /* Socket variables */
-    int port = 9303;
+    int port = atoi(argv[2]);
     int socketFD;
-    struct sockaddr_in clientAddr;
+    struct sockaddr_in serverAddr;
     struct hostent *server;
 
-    if (argc != 2)
+    if (argc != 3)
     {
         printf("Usage: ./client <ip address>\n");
         exit(EXIT_FAILURE);
@@ -46,17 +46,17 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
 
-    bzero((char *) &clientAddr, sizeof(clientAddr));
-    clientAddr.sin_family = AF_INET;
+    bzero((char *) &serverAddr, sizeof(serverAddr));
+    serverAddr.sin_family = AF_INET;
     bcopy(
     	(char *)server->h_addr,
-    	(char *) &clientAddr.sin_addr.s_addr,
+    	(char *) &serverAddr.sin_addr.s_addr,
     	server->h_length
     );
-    clientAddr.sin_port = htons(port);
+    serverAddr.sin_port = htons(port);
 
     /* Connect to the server */
-    if (connect(socketFD, (struct sockaddr *) &clientAddr, sizeof(clientAddr)) < 0)
+    if (connect(socketFD, (struct sockaddr *) &serverAddr, sizeof(serverAddr)) < 0)
     {
     	perror("Error 1224");
     	exit(EXIT_FAILURE);
@@ -72,7 +72,7 @@ int main(int argc, char const *argv[])
 	    */
 	    printf("-> ");
 	    bzero(buffer, BUFFER_SIZE);
-	    fgets(buffer, BUFFER_SIZE, stdin);
+	    fgets(buffer, BUFFER_SIZE - 1, stdin);
 
 	    /* Send Message */
 	    n = write(socketFD, buffer, strlen(buffer));
@@ -82,10 +82,11 @@ int main(int argc, char const *argv[])
 	    	exit(EXIT_FAILURE);
 	    }
 
-	    /* Read server message */
+        /* Buffer cleaning */
 	    bzero(buffer, BUFFER_SIZE);
 
-	    n = read(socketFD, buffer, BUFFER_SIZE);
+        /* Read server message */
+	    n = read(socketFD, buffer, BUFFER_SIZE - 1);
 	    if (n < 0)
 	    {
 	    	perror("Error 1335");
