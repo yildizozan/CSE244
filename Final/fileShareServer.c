@@ -3,13 +3,25 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
-#include <sys/types.h>
+#include <sys/wait.h>
+#include <sys/time.h>
+#include <sys/types.h> 
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <signal.h>
+
 
 #define BUFFER_SIZE 256
 
-void communication(int);
+void Communication(int);
+
+void SignalHandler(int sign)
+{
+    if (sign == SIGINT)
+        printf("received SIGINT\n");
+
+    wait3(NULL, WNOHANG , NULL);
+}
 
 int main(int argc, char const *argv[])
 {
@@ -32,6 +44,11 @@ int main(int argc, char const *argv[])
         printf("Usage: ./client <ip address>\n");
         exit(EXIT_FAILURE);
     }
+
+    /*
+    *   Signal
+    */
+    signal(SIGCHLD, SignalHandler);
 
     /* Creating socket */
     socketFD = socket(AF_INET, SOCK_STREAM, 0);
@@ -75,14 +92,13 @@ int main(int argc, char const *argv[])
         if (childPid < 0)
         {
             perror("Error 334");
-            exit(EXIT_FAILURE);
         }
 
         /* This is the client process */
         if (childPid == 0)
         {
             close(socketFD); /* WHY */
-            communication(socketAcceptFD);
+            Communication(socketAcceptFD);
             exit(EXIT_SUCCESS);
         }
         else
@@ -96,10 +112,13 @@ int main(int argc, char const *argv[])
     return 0;
 }
 
-void communication(int newSocket)
+void Communication(int newSocket)
 {
     int n;
+
     int quit = 1;
+    char quitVariable[] = "quit";
+
     char buffer[BUFFER_SIZE];
 
     while(quit)
@@ -112,6 +131,11 @@ void communication(int newSocket)
             exit(EXIT_FAILURE);
         }
 
+        if (strcmp(buffer, quitVariable) == 0)
+        {
+            quit = 0;
+        }
+
         printf("Here is the message: %s\n", buffer);
 
         n = write(newSocket,"I got your message", 18);
@@ -120,5 +144,7 @@ void communication(int newSocket)
             exit(EXIT_FAILURE);
         }
     }
+
+    close(newSocket);
 
 }
