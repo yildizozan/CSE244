@@ -5,39 +5,67 @@
 #include <unistd.h>
 #include <sys/wait.h>
 #include <sys/time.h>
-#include <sys/types.h> 
+#include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <signal.h>
 
-
 #define BUFFER_SIZE 256
+
+typedef struct clientList
+{
+    long pid;
+    char connectionTime[BUFFER_SIZE];
+    unsigned int status;
+};
+
+/*
+*   Global variables
+*/
+    int socketFD;
+    int shutdownServer = 0;
+    clientList activeClients;
+
+/*
+*   Function Prototype
+*/
 
 void Communication(int);
 
 void SignalHandler(int sign)
 {
+    if (sign == SIGCHLD)
+    {
+        wait3(NULL, WNOHANG , NULL);
+    }
     if (sign == SIGINT)
+    {
         printf("received SIGINT\n");
-
-    wait3(NULL, WNOHANG , NULL);
+        shutdownServer = 1;
+    }
 }
 
 int main(int argc, char const *argv[])
 {
     /* General variables */
-    int quit = 1;
 
     /* Fork variables */
     int childPid;
 
     /* Socket variables */
     int port;
-    int socketFD;
     int socketAcceptFD;
     struct sockaddr_in serverAddr;
     struct sockaddr_in clientAddr;
     socklen_t clientAddrLen;
+
+    /*
+    *   Signal
+    */
+    struct sigaction action;
+    action.sa_handler = SignalHandler;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
 
     if (argc != 2)
     {
@@ -45,10 +73,8 @@ int main(int argc, char const *argv[])
         exit(EXIT_FAILURE);
     }
 
-    /*
-    *   Signal
-    */
-    signal(SIGCHLD, SignalHandler);
+    /*sigaction(SIGCHLD, &SignalHandler, NULL);*/
+    sigaction(SIGINT, &action, NULL);
 
     /* Creating socket */
     socketFD = socket(AF_INET, SOCK_STREAM, 0);
@@ -74,11 +100,11 @@ int main(int argc, char const *argv[])
     }
 
     /* Starting to liston for the clientsi now! */
-    listen(socketFD, 1);
+    listen(socketFD, 5);
 
     clientAddrLen = sizeof(clientAddr);
 
-    while(quit)
+    while(shutdownServer == 0)
     {
         /* Socket waiting */
         socketAcceptFD = accept(socketFD, (struct sockaddr *) &clientAddr, &clientAddrLen);
@@ -111,6 +137,13 @@ int main(int argc, char const *argv[])
 
     return 0;
 }
+
+/*
+*   FUNCTIN: SignalHandler
+*
+*   PURPOSE: Catch signals
+*/
+
 
 void Communication(int newSocket)
 {
