@@ -20,7 +20,7 @@ struct clientList
 };
 
 /*
-*   Global variables 
+*   Global variables
 */
 int socketFD;
 int shutdownServer = 0;
@@ -43,7 +43,7 @@ void SignalHandler(int sign)
     {
         printf("received SIGINT\n");
         shutdownServer = 1;
-    }    
+    }
 }
 
 int main(int argc, char const *argv[])
@@ -159,7 +159,6 @@ void Communication(int newSocket)
     int n;
 
     int quit = 1;
-    char quitVariable[] = "quit";
 
     char buffer[BUFFER_SIZE];
 
@@ -173,9 +172,13 @@ void Communication(int newSocket)
             exit(EXIT_FAILURE);
         }
 
-        if (strcmp(buffer, quitVariable) == 0)
+        if (strcmp(buffer, "quit") == 0)
         {
             quit = 0;
+        }
+        else if()
+        {
+
         }
 
         printf("Here is the message: %s\n", buffer);
@@ -203,9 +206,28 @@ void KillAllChild(void)
 
 void listServer(void)
 {
+    DIR *directory;
+    struct dirent directoryEntry;
+
     char cwd[BUFFER_SIZE];
-    if (getcwd(cwd, sizeof(cwd)) != NULL)
-        fprintf(stdout, "Current working dir: %s\n", cwd);
-    else
-        perror("getcwd() error");
+
+    if (getcwd(cwd, sizeof(cwd)) == NULL)
+    {
+        perror("Error 663");
+        return;
+    }
+
+    strcat(cwd, "/storage");
+    fprintf(stdout, "Current working dir: %s\n", cwd);
+
+    directory = opendir(cwd);
+    if (dir == NULL)
+    {
+        perror("Error 664");
+        return;
+    }
+
+    while ((directoryEntry = readdir(dir)) != NULL) {
+      printf("/t%s\n", directoryEntry->d_name);
+    }
 }
