@@ -2,13 +2,14 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <signal.h>
 #include <unistd.h>
+#include <dirent.h>
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <signal.h>
 
 #define BUFFER_SIZE 256
 
@@ -176,9 +177,10 @@ void Communication(int newSocket)
         {
             quit = 0;
         }
-        else if()
+        else if (strcmp(buffer, "listServer") == 0)
         {
-
+            listServer();
+            continue;
         }
 
         printf("Here is the message: %s\n", buffer);
@@ -207,7 +209,7 @@ void KillAllChild(void)
 void listServer(void)
 {
     DIR *directory;
-    struct dirent directoryEntry;
+    struct dirent *directoryEntry;
 
     char cwd[BUFFER_SIZE];
 
@@ -221,13 +223,14 @@ void listServer(void)
     fprintf(stdout, "Current working dir: %s\n", cwd);
 
     directory = opendir(cwd);
-    if (dir == NULL)
+    if (directory == NULL)
     {
         perror("Error 664");
         return;
     }
 
-    while ((directoryEntry = readdir(dir)) != NULL) {
-      printf("/t%s\n", directoryEntry->d_name);
+    while ((directoryEntry = readdir(directory)) != NULL)
+    {
+        printf("/t%s\n", directoryEntry->d_name);
     }
 }
