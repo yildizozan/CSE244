@@ -12,7 +12,7 @@
 
 #define BUFFER_SIZE 256
 
-typedef struct clientList
+struct clientList
 {
     long pid;
     char connectionTime[BUFFER_SIZE];
@@ -20,17 +20,18 @@ typedef struct clientList
 };
 
 /*
-*   Global variables
+*   Global variables 
 */
-    int socketFD;
-    int shutdownServer = 0;
-    clientList activeClients;
+int socketFD;
+int shutdownServer = 0;
+struct clientList activeClients[100];
 
 /*
 *   Function Prototype
 */
-
 void Communication(int);
+void KillAllChild(void);
+void listServer(void);
 
 void SignalHandler(int sign)
 {
@@ -42,7 +43,7 @@ void SignalHandler(int sign)
     {
         printf("received SIGINT\n");
         shutdownServer = 1;
-    }
+    }    
 }
 
 int main(int argc, char const *argv[])
@@ -51,6 +52,9 @@ int main(int argc, char const *argv[])
 
     /* Fork variables */
     int childPid;
+
+    /* Pipe description */
+    int pipeDescription[2];
 
     /* Socket variables */
     int port;
@@ -113,6 +117,11 @@ int main(int argc, char const *argv[])
             perror("Error 332");
         }
 
+        if (pipe(pipeDescription) < 0)
+        {
+            perror("Error 333");
+        }
+
         /* Create child process */
         childPid = fork();
         if (childPid < 0)
@@ -123,7 +132,7 @@ int main(int argc, char const *argv[])
         /* This is the client process */
         if (childPid == 0)
         {
-            close(socketFD); /* WHY */
+            close(socketFD);
             Communication(socketAcceptFD);
             exit(EXIT_SUCCESS);
         }
@@ -180,4 +189,23 @@ void Communication(int newSocket)
 
     close(newSocket);
 
+}
+
+void KillAllChild(void)
+{
+    int i;
+
+    for (i = 0; i < 100; ++i)
+    {
+        kill(activeClients[i].pid, SIGKILL);
+    }
+}
+
+void listServer(void)
+{
+    char cwd[BUFFER_SIZE];
+    if (getcwd(cwd, sizeof(cwd)) != NULL)
+        fprintf(stdout, "Current working dir: %s\n", cwd);
+    else
+        perror("getcwd() error");
 }

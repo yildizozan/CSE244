@@ -6,9 +6,15 @@
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
-#include <netdb.h> 
+#include <netdb.h>
+#include <signal.h>
 
 #define BUFFER_SIZE 256
+
+void listLocal(void);
+void help(void);
+
+void SignalHandler(int);
 
 int main(int argc, char const *argv[])
 {
@@ -30,6 +36,10 @@ int main(int argc, char const *argv[])
         printf("Usage: ./client <ip address>\n");
         exit(EXIT_FAILURE);
     }
+
+    /*
+    *   Signal
+    */
 
 	/* Create a socket */
     socketFD = socket(AF_INET, SOCK_STREAM, 0);
@@ -72,30 +82,71 @@ int main(int argc, char const *argv[])
 	    */
 	    printf("-> ");
 	    bzero(buffer, BUFFER_SIZE);
-	    fgets(buffer, BUFFER_SIZE - 1, stdin);
+	    fgets(buffer, BUFFER_SIZE, stdin);
 
-	    /* Send Message */
-	    n = write(socketFD, buffer, strlen(buffer));
-	    if (n < 0)
-	    {
-	    	perror("Error 1335");
-	    	exit(EXIT_FAILURE);
-	    }
+        buffer[strlen(buffer)-1] = '\0';
 
-        /* Buffer cleaning */
-	    bzero(buffer, BUFFER_SIZE);
+        if (strcmp(buffer, "help") == 0)
+        {
+            printf("Help yazdın!\n");
+            help();
+            continue;
+        }
+        if (strcmp(buffer, "listLocal") == 0)
+        {
+            printf("listLocal yazdın!\n");
+            listLocal();
+            continue;
+        }
+        if (strcmp(buffer, "send") == 0)
+        {
+            /* Send Message */
+            n = write(socketFD, buffer, strlen(buffer));
+            if (n < 0)
+            {
+                perror("Error 1335");
+                exit(EXIT_FAILURE);
+            }
 
-        /* Read server message */
-	    n = read(socketFD, buffer, BUFFER_SIZE - 1);
-	    if (n < 0)
-	    {
-	    	perror("Error 1335");
-	    	exit(EXIT_FAILURE);
-	    }
+            /* Buffer cleaning */
+            bzero(buffer, BUFFER_SIZE);
 
-	    printf("%s\n", buffer);
+            /* Read server message */
+            n = read(socketFD, buffer, BUFFER_SIZE);
+            if (n < 0)
+            {
+                perror("Error 1335");
+                exit(EXIT_FAILURE);
+            }
+        }
     }
 
 
     return 0;
+}
+
+void SignalHandler(int sign)
+{
+    if (sign == SIGINT)
+    {
+        printf("SIGINT signal catched!\n");
+    }
+    else if (sign == SIGTSTP)
+    {
+        printf("SIGTSTP signal catched!\n");
+    }
+}
+
+void listLocal(void)
+{
+    char cwd[BUFFER_SIZE];
+    if (getcwd(cwd, sizeof(cwd)) != NULL)
+        fprintf(stdout, "Current working dir: %s\n", cwd);
+    else
+        perror("getcwd() error");
+}
+
+void help(void)
+{
+
 }
