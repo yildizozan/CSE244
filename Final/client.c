@@ -2,13 +2,26 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <signal.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <sys/wait.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+
 #include <netdb.h>
 
 #define BUFFER_SIZE 256
+
+/* Globals */
+int socketFD;
+
+void listLocal(char []);
+void help(void);
+
+void SignalHandler(int);
 
 int main(int argc, char const *argv[])
 {
@@ -21,7 +34,6 @@ int main(int argc, char const *argv[])
 
     /* Socket variables */
     int port = atoi(argv[2]);
-    int socketFD;
     struct sockaddr_in serverAddr;
     struct hostent *server;
 
@@ -30,6 +42,10 @@ int main(int argc, char const *argv[])
         printf("Usage: ./client <ip address>\n");
         exit(EXIT_FAILURE);
     }
+
+    /*
+    *   Signal
+    */
 
 	/* Create a socket */
     socketFD = socket(AF_INET, SOCK_STREAM, 0);
@@ -68,34 +84,181 @@ int main(int argc, char const *argv[])
     while(quit)
     {
 	    /*
-	    *	Send Message!
+	    *	Enter command
 	    */
 	    printf("-> ");
 	    bzero(buffer, BUFFER_SIZE);
-	    fgets(buffer, BUFFER_SIZE - 1, stdin);
+	    fgets(buffer, BUFFER_SIZE, stdin);
 
-	    /* Send Message */
-	    n = write(socketFD, buffer, strlen(buffer));
-	    if (n < 0)
-	    {
-	    	perror("Error 1335");
-	    	exit(EXIT_FAILURE);
-	    }
+        buffer[strlen(buffer)-1] = '\0';
 
-        /* Buffer cleaning */
-	    bzero(buffer, BUFFER_SIZE);
+        if (strcmp(buffer, "help") == 0)
+        {
+            printf("Help yazdın!\n");
+            help();
 
-        /* Read server message */
-	    n = read(socketFD, buffer, BUFFER_SIZE - 1);
-	    if (n < 0)
-	    {
-	    	perror("Error 1335");
-	    	exit(EXIT_FAILURE);
-	    }
+            continue;
+        }
+        else if (strcmp(buffer, "listLocal") == 0)
+        {
+            printf("listLocal yazdın!\n");
 
-	    printf("%s\n", buffer);
+            getcwd(buffer, sizeof(buffer));
+            fprintf(stdout, "Current working dir: %s\n", buffer);
+
+            listLocal(buffer);
+
+            continue;
+        }
+        else if (strcmp(buffer, "listServer") == 0)
+        {
+            printf("listServer yazdın!\n");
+
+            /* Send Message */
+            n = write(socketFD, buffer, strlen(buffer));
+            if (n < 0)
+            {
+                perror("Error 1335");
+                exit(EXIT_FAILURE);
+            }
+
+            /* Buffer cleaning */
+            bzero(buffer, BUFFER_SIZE);
+
+            /* Read server message */
+            n = read(socketFD, buffer, BUFFER_SIZE);
+            if (n < 0)
+            {
+                perror("Error 1335");
+                exit(EXIT_FAILURE);
+            }
+
+            continue;
+        }
+        else if (strcmp(buffer, "send") == 0)
+        {
+            /* Send Message */
+            n = write(socketFD, buffer, strlen(buffer));
+            if (n < 0)
+            {
+                perror("Error 1335");
+                exit(EXIT_FAILURE);
+            }
+
+            /* Buffer cleaning */
+            bzero(buffer, BUFFER_SIZE);
+
+            /* Read server message */
+            n = read(socketFD, buffer, BUFFER_SIZE);
+            if (n < 0)
+            {
+                perror("Error 1335");
+                exit(EXIT_FAILURE);
+            }
+
+            continue;
+        }
+        else
+        {
+            printf("Geçersiz komut..\n");
+
+            continue;
+        }
     }
 
 
     return 0;
+}
+
+void SignalHandler(int sign)
+{
+    if (sign == SIGINT)
+    {
+        printf("SIGINT signal catched!\n");
+    }
+    else if (sign == SIGTSTP)
+    {
+        printf("SIGTSTP signal catched!\n");
+    }
+}
+
+/*
+*   FUNCTIONS: Sending, Reveiving
+*
+*
+*/
+int Sending(char buffer[BUFFER_SIZE])
+{
+    int n;
+
+    n = write(socketFD, buffer, strlen(buffer));
+    if (n < 0)
+    {
+        perror("Error 1335");
+        return 0;
+    }
+
+    return 1;
+}
+
+int Receiving(void)
+{
+    int n;
+    char buffer[BUFFER_SIZE];
+
+    /* Buffer cleaning */
+    bzero(buffer, BUFFER_SIZE);
+
+    /* Read server message */
+    n = read(socketFD, buffer, BUFFER_SIZE);
+    if (n < 0)
+    {
+        perror("Error 1336");
+        return 0;
+    }
+
+    return 1;
+}
+
+/*
+*   FUNCTION: listLocal
+*/
+void listLocal(char cwd[BUFFER_SIZE])
+{
+    DIR *directory;
+    struct dirent *directoryEntry;
+
+    directory = opendir(cwd);
+    if (directory == NULL)
+    {
+        perror("Error 664");
+        return;
+    }
+
+    while ((directoryEntry = readdir(directory)) != NULL)
+    {
+        if (strcmp(directoryEntry->d_name, ".") == 0 || strcmp(directoryEntry->d_name, "..") == 0)
+            continue;
+
+        else if (directoryEntry->d_type == DT_DIR)
+        {
+            strcat(cwd, "/");
+            strcat(cwd, directoryEntry->d_name);
+            printf("->zsc\n");
+            printf("%s\n", cwd);
+            listLocal(cwd);
+
+        }
+        else if (directoryEntry->d_type == DT_REG)
+        {
+            printf("\t%s\n", directoryEntry->d_name);
+        }
+    }
+}
+void help(void)
+{
+    printf("Modules: \n");
+    printf("\tlistServer\n");
+    printf("\tlistLocal\n");
+    printf("\tsend <id> <file of full path>\n");
 }

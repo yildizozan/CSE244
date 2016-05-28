@@ -2,36 +2,84 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <signal.h>
 #include <unistd.h>
+#include <dirent.h>
+#include <sys/wait.h>
+#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 
 #define BUFFER_SIZE 256
 
-void communication(int);
+struct clientList
+{
+    long pid;
+    char connectionTime[BUFFER_SIZE];
+    unsigned int status;
+};
+
+/*
+*   Global variables
+*/
+int socketFD;
+int shutdownServer = 0;
+struct clientList activeClients[100];
+
+/*
+*   Function Prototype
+*/
+void Communication(int);
+void KillAllChild(void);
+void listServer(void);
+
+void SignalHandler(int sign)
+{
+    if (sign == SIGCHLD)
+    {
+        wait3(NULL, WNOHANG , NULL);
+    }
+    if (sign == SIGINT)
+    {
+        printf("received SIGINT\n");
+        shutdownServer = 1;
+    }
+}
 
 int main(int argc, char const *argv[])
 {
     /* General variables */
-    int quit = 1;
 
     /* Fork variables */
     int childPid;
 
+    /* Pipe description */
+    int pipeDescription[2];
+
     /* Socket variables */
     int port;
-    int socketFD;
     int socketAcceptFD;
     struct sockaddr_in serverAddr;
     struct sockaddr_in clientAddr;
     socklen_t clientAddrLen;
+
+    /*
+    *   Signal
+    */
+    struct sigaction action;
+    action.sa_handler = SignalHandler;
+    sigemptyset(&action.sa_mask);
+    action.sa_flags = 0;
 
     if (argc != 2)
     {
         printf("Usage: ./client <ip address>\n");
         exit(EXIT_FAILURE);
     }
+
+    /*sigaction(SIGCHLD, &SignalHandler, NULL);*/
+    sigaction(SIGINT, &action, NULL);
 
     /* Creating socket */
     socketFD = socket(AF_INET, SOCK_STREAM, 0);
@@ -57,11 +105,11 @@ int main(int argc, char const *argv[])
     }
 
     /* Starting to liston for the clientsi now! */
-    listen(socketFD, 1);
+    listen(socketFD, 5);
 
     clientAddrLen = sizeof(clientAddr);
 
-    while(quit)
+    while(shutdownServer == 0)
     {
         /* Socket waiting */
         socketAcceptFD = accept(socketFD, (struct sockaddr *) &clientAddr, &clientAddrLen);
@@ -70,19 +118,23 @@ int main(int argc, char const *argv[])
             perror("Error 332");
         }
 
+        if (pipe(pipeDescription) < 0)
+        {
+            perror("Error 333");
+        }
+
         /* Create child process */
         childPid = fork();
         if (childPid < 0)
         {
             perror("Error 334");
-            exit(EXIT_FAILURE);
         }
 
         /* This is the client process */
         if (childPid == 0)
         {
-            close(socketFD); /* WHY */
-            communication(socketAcceptFD);
+            close(socketFD);
+            Communication(socketAcceptFD);
             exit(EXIT_SUCCESS);
         }
         else
@@ -96,10 +148,19 @@ int main(int argc, char const *argv[])
     return 0;
 }
 
-void communication(int newSocket)
+/*
+*   FUNCTIN: SignalHandler
+*
+*   PURPOSE: Catch signals
+*/
+
+
+void Communication(int newSocket)
 {
     int n;
+
     int quit = 1;
+
     char buffer[BUFFER_SIZE];
 
     while(quit)
@@ -112,6 +173,16 @@ void communication(int newSocket)
             exit(EXIT_FAILURE);
         }
 
+        if (strcmp(buffer, "quit") == 0)
+        {
+            quit = 0;
+        }
+        else if (strcmp(buffer, "listServer") == 0)
+        {
+            listServer();
+            continue;
+        }
+
         printf("Here is the message: %s\n", buffer);
 
         n = write(newSocket,"I got your message", 18);
@@ -120,5 +191,73 @@ void communication(int newSocket)
             exit(EXIT_FAILURE);
         }
     }
+
+    close(newSocket);
+
+}
+
+void KillAllChild(void)
+{
+    int i;
+
+    for (i = 0; i < 100; ++i)
+    {
+        kill(activeClients[i].pid, SIGKILL);
+    }
+}
+
+void listServer(void)
+{
+    int n;
+    DIR *directory;
+    struct dirent *directoryEntry;
+
+    char cwd[BUFFER_SIZE];
+    char buffer[BUFFER_SIZE];
+
+    if (getcwd(cwd, sizeof(cwd)) == NULL)
+    {
+        perror("Error 663");
+        return;
+    }
+
+    strcat(cwd, "/storage");
+    fprintf(stdout, "Current working dir: %s\n", cwd);
+
+    directory = opendir(cwd);
+    if (directory == NULL)
+    {
+        perror("Error 664");
+        return;
+    }
+
+    while ((directoryEntry = readdir(directory)) != NULL)
+    {
+        if (strcmp(directoryEntry->d_name, ".") == 0 || strcmp(directoryEntry->d_name, "..") == 0)
+            continue;
+
+        snprintf(buffer, BUFFER_SIZE, "\t%s\n", directoryEntry->d_name);
+        n = write(socketFD, buffer, BUFFER_SIZE);
+        if (n < 0)
+        {
+            printf("Data gönderilemedi!\n");
+        }
+
+    }
+}
+
+void writeLog(char message[BUFFER_SIZE])
+{
+    FILE *logfile;
+
+    logfile = fopen("server.log", "a");
+    if (!logfile)
+    {
+        return;
+    }
+
+    fprintf(logfile, "%s\n", message);
+
+    fclose(logfile);
 
 }
