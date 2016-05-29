@@ -94,15 +94,23 @@ int main(int argc, char const *argv[])
 
         if (strcmp(buffer, "help") == 0)
         {
-            printf("Help yazdın!\n");
             help();
+
+            continue;
+        }
+        else if (strcmp(buffer, "activeClients") == 0)
+        {
+            n = write(socketFD, buffer, strlen(buffer));
+            if (n < 0)
+            {
+                perror("Error 1335");
+                exit(EXIT_FAILURE);
+            }
 
             continue;
         }
         else if (strcmp(buffer, "listLocal") == 0)
         {
-            printf("listLocal yazdın!\n");
-
             getcwd(buffer, sizeof(buffer));
             fprintf(stdout, "Current working dir: %s\n", buffer);
 
