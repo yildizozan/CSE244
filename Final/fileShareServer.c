@@ -5,34 +5,47 @@
 #include <signal.h>
 #include <unistd.h>
 #include <dirent.h>
+#include <time.h>
 #include <sys/wait.h>
 #include <sys/time.h>
 #include <sys/types.h>
 #include <sys/socket.h>
+#include <sys/shm.h>
 #include <netinet/in.h>
 
 #define BUFFER_SIZE 256
+#define MAX_CLIENT 100
 
 struct clientList
 {
-    long pid;
+    pid_t pid;
     char connectionTime[BUFFER_SIZE];
     unsigned int status;
 };
 
 /*
-*   Global variables
+||  Global variables
 */
-int socketFD;
-int shutdownServer = 0;
-struct clientList activeClients[100];
+    int socketFD;
+    int shutdownServer = 0;
+
+        /* Shared Memory variables */
+    int shmID;
+    struct clientList *activeClients;
 
 /*
-*   Function Prototype
+||  Function Prototype
 */
 void Communication(int);
 void KillAllChild(void);
 void listServer(void);
+
+int clientControl(pid_t);
+int clientAdd(void);
+void clientDelete(int);
+void clientList(void);
+
+void writeLog(char *);
 
 void SignalHandler(int sign)
 {
@@ -64,22 +77,36 @@ int main(int argc, char const *argv[])
     struct sockaddr_in clientAddr;
     socklen_t clientAddrLen;
 
-    /*
-    *   Signal
-    */
+
+
+    /* Signal */
     struct sigaction action;
     action.sa_handler = SignalHandler;
     sigemptyset(&action.sa_mask);
     action.sa_flags = 0;
 
+    sigaction(SIGINT, &action, NULL);
+
+    /* Command line args controls */
     if (argc != 2)
     {
         printf("Usage: ./client <ip address>\n");
         exit(EXIT_FAILURE);
     }
 
-    /*sigaction(SIGCHLD, &SignalHandler, NULL);*/
-    sigaction(SIGINT, &action, NULL);
+    /*
+    *   Creating Shared Memory for active clients
+    */
+    shmID = shmget(IPC_PRIVATE, MAX_CLIENT * sizeof(struct clientList), IPC_CREAT | 0666);
+    if (shmID < 0)
+    {
+        perror("Error 326");
+        exit(EXIT_FAILURE);
+    }
+
+    activeClients = (struct clientList *) shmat(shmID, NULL, 0);
+    /* How to control activeClients */
+
 
     /* Creating socket */
     socketFD = socket(AF_INET, SOCK_STREAM, 0);
@@ -116,6 +143,7 @@ int main(int argc, char const *argv[])
         if (socketAcceptFD < 0)
         {
             perror("Error 332");
+            continue;
         }
 
         if (pipe(pipeDescription) < 0)
@@ -129,9 +157,7 @@ int main(int argc, char const *argv[])
         {
             perror("Error 334");
         }
-
-        /* This is the client process */
-        if (childPid == 0)
+        else if (childPid == 0) /* This is the client process */
         {
             close(socketFD);
             Communication(socketAcceptFD);
@@ -141,9 +167,15 @@ int main(int argc, char const *argv[])
         {
             close(socketAcceptFD);
         }
+
     }
 
+    /* Close TCP socket */
     close(socketFD);
+
+    /* Shared Memory detach */
+    shmdt((void *) activeClients);
+    shmctl(shmID, IPC_RMID, NULL);
 
     return 0;
 }
@@ -158,24 +190,62 @@ int main(int argc, char const *argv[])
 void Communication(int newSocket)
 {
     int n;
+    int sequenceNumber;
 
     int quit = 1;
 
     char buffer[BUFFER_SIZE];
+
+    /*
+    ||  Register clients table
+    */
+
+    /* Control for exist active client */
+    sequenceNumber = clientControl(getpid());
+    if (-1 < sequenceNumber)
+    {
+        sequenceNumber = -1;
+
+        clientDelete(sequenceNumber);   /* Client ending session */
+        kill(activeClients[sequenceNumber].pid, SIGTERM);
+
+        while(sequenceNumber == -1)     /* Client start new session */
+        {
+            sequenceNumber = clientAdd();
+        }
+    }
+    else
+    {
+        while(sequenceNumber == -1)     /* Client start new session */
+        {
+            sequenceNumber = clientAdd();
+        }
+    }
 
     while(quit)
     {
         bzero(buffer, BUFFER_SIZE);
 
         n = read(newSocket, buffer, BUFFER_SIZE - 1);
-        if (n < 0) {
-            perror("ERROR reading from socket");
-            exit(EXIT_FAILURE);
+        if (n < 1)
+        {
+            quit = 0;
+            break;
+        }
+        else
+        {
+            printf("Here is the message: %s\n", buffer);
         }
 
         if (strcmp(buffer, "quit") == 0)
         {
             quit = 0;
+            break;
+        }
+        else if (strcmp(buffer, "activeClients") == 0)
+        {
+            clientList();
+            continue;
         }
         else if (strcmp(buffer, "listServer") == 0)
         {
@@ -183,7 +253,6 @@ void Communication(int newSocket)
             continue;
         }
 
-        printf("Here is the message: %s\n", buffer);
 
         n = write(newSocket,"I got your message", 18);
         if (n < 0) {
@@ -192,17 +261,89 @@ void Communication(int newSocket)
         }
     }
 
+    /* Close socket for communication */
     close(newSocket);
 
+    /* Delete myself in the clients table */
+    clientDelete(sequenceNumber);
+
+    exit(EXIT_SUCCESS);
 }
 
+/*
+*   FUNCTIONS:  Shared Memory Operations
+*
+*   PURPOSE:    Client'leri shared memorydeki tablolara ekleme çıkarma
+*               fonksiyonlarını içerir
+*
+*   COMMITS:
+*/
+int clientControl(pid_t childPid)
+{
+    int i;
+
+    for (i = 0; i < MAX_CLIENT; ++i)
+    {
+        if (activeClients[i].pid == childPid)
+        {
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+int clientAdd(void)
+{
+    int i;
+
+    for (i = 0; i < MAX_CLIENT; ++i)
+    {
+        if (activeClients[i].pid == 0)
+        {
+            activeClients[i].pid = getpid();
+
+            /* Login write log file */
+            writeLog("Login");
+
+            return i;
+        }
+    }
+
+    return -1;
+}
+
+void clientDelete(int pSequenceNumber)
+{
+    activeClients[pSequenceNumber].pid = 0;
+
+    /* Logout write log file */
+    writeLog("Logout");
+}
+
+void clientList(void)
+{
+    int i;
+
+    for (i = 0; i < MAX_CLIENT; ++i)
+    {
+        printf("%d client: %ld\n", i, (long) activeClients[i].pid);
+    }
+}
+
+
+/*
+*
+*
+*
+*/
 void KillAllChild(void)
 {
     int i;
 
-    for (i = 0; i < 100; ++i)
+    for (i = 0; i < MAX_CLIENT; ++i)
     {
-        kill(activeClients[i].pid, SIGKILL);
+        kill(activeClients[i].pid, SIGUSR1);
     }
 }
 
@@ -246,18 +387,45 @@ void listServer(void)
     }
 }
 
-void writeLog(char message[BUFFER_SIZE])
+/*
+*   FUNCTIONS:  writeLog
+*
+*   PURPOSE:
+*
+*   COMMITS:
+*/
+void writeLog(char *string)
 {
-    FILE *logfile;
+    FILE *fd;
 
-    logfile = fopen("server.log", "a");
-    if (!logfile)
+    char buffer[100];
+
+    time_t current_time;
+    char* c_time_string;
+
+    /* Obtain current time. */
+    current_time = time(NULL);
+
+    if (current_time == ((time_t)-1))
     {
-        return;
+        (void) fprintf(stderr, "Failure to obtain the current time.\n");
+        exit(EXIT_FAILURE);
     }
 
-    fprintf(logfile, "%s\n", message);
+    /* Convert to local time format. */
+    c_time_string = ctime(&current_time);
 
-    fclose(logfile);
+    if (c_time_string == NULL)
+    {
+        (void) fprintf(stderr, "Failure to convert the current time.\n");
+        exit(EXIT_FAILURE);
+    }
 
+    /* Print to stdout. ctime() has already added a terminating newline character. */
+    snprintf(buffer, BUFFER_SIZE, "%ld %s %s", (long) getpid(), string, c_time_string);
+    printf("%s", buffer);
+
+    fd = fopen("Server.log", "a+");
+    fprintf(fd, "%s", buffer);
+    fclose(fd);
 }
